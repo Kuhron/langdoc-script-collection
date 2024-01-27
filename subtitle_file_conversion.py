@@ -1,3 +1,22 @@
+# Copyright (c) 2023 Wesley Kuhron Jones <wesleykuhronjones@gmail.com>
+# Licensed under the MIT License, see below
+
+
+### PARAMS TO BE SET BY USER ###
+
+# target language
+targlang_name = "Horokoi"
+targlang_abbrev = "Hk"  # don't make it "Eng" since that's used for English
+
+# contact language
+contlang_name = "TokPisin"
+contlang_abbrev = "Tp"  # don't make it "Eng" since that's used for English
+
+### END USER PARAMS ###
+
+contact_language_is_english = contact_language_name == "English"
+
+
 # extract the text labels in each language and print them for pasting into Flex
 
 import os
@@ -5,32 +24,31 @@ import sys
 from xml.etree import ElementTree as ET
 
 
-
 def create_srt_file_from_eaf(fp, session_dir, subtitle_offset_to_add, srt_fp=None):
-    assert fp.endswith(".eaf")
+    assert fp.endswith(".eaf"), "fp must end with '.eaf'"
 
-    horokoi_texts, tp_texts, start_times, end_times = get_texts_and_times_from_eaf(eaf_fp)
-    hk_lines = horokoi_texts
-    tp_lines = tp_texts
-    create_srt_hk_and_tp(hk_lines, tp_lines, start_times, end_times, session_dir, subtitle_offset_to_add)
-    write_texts_interleaved(horokoi_texts, tp_texts, session_dir)
-    hk_subtitles, other_lines = get_subtitles_and_other_lines("Hk_Raw", session_dir, other_lines_already_seen=None)
-    tp_subtitles, other_lines = get_subtitles_and_other_lines("Tp_Raw", session_dir, other_lines_already_seen=other_lines)
+    targlang_texts, contlang_texts, start_times, end_times = get_texts_and_times_from_eaf(eaf_fp)
+    targlang_lines = targlang_texts
+    contlang_lines = contlang_texts
+    create_srt_targlang_and_contlang(targlang_lines, contlang_lines, start_times, end_times, session_dir, subtitle_offset_to_add)
+    write_texts_interleaved(targlang_texts, contlang_texts, session_dir)
+    targlang_subtitles, other_lines = get_subtitles_and_other_lines(f"{targlang_abbrev}_Raw", session_dir, other_lines_already_seen=None)
+    contlang_subtitles, other_lines = get_subtitles_and_other_lines(f"{contlang_abbrev}_Raw", session_dir, other_lines_already_seen=other_lines)
 
-    lang_code = "HkTp"
+    lang_code = f"{targlang_abbrev}{contlang_abbrev}"
     eng_subtitles = None
-    create_srt_interleaved(lang_code, session_dir, hk_subtitles, tp_subtitles, eng_subtitles, other_lines, srt_fp=srt_fp)
+    create_srt_interleaved(lang_code, session_dir, targlang_subtitles, contlang_subtitles, eng_subtitles, other_lines, srt_fp=srt_fp)
 
 
-def create_srt_hk_and_tp(hk_lines, tp_lines, start_times, end_times, session_dir, subtitle_offset_to_add):
-    for lang_code in ["Hk", "Tp"]:
-        # don't bother with one for TpEng or HkTpEng, we mostly care about people understanding the Horokoi in either one of the contact lgs
-        # so of all 8 possibilities: users can do: 0, Hk, Tp, Eng, HkTp, HkEng, (X)TpEng, (X)HkTpEng
+def create_srt_targlang_and_contlang(targlang_lines, contlang_lines, start_times, end_times, session_dir, subtitle_offset_to_add):
+    for lang_code in [targlang_abbrev, contlang_abbrev]:
+        # don't bother with one for contlang-english or targlang-contlang-english, we mostly care about people understanding the target language in either the contact language or English
+        # so of all 8 possibilities: users can do: 0, targ, cont, eng, targ-cont, targ-eng, (X)cont-engEng, (X)targ-cont-eng
 
         with open(os.path.join(session_dir, f"Subtitles{lang_code}_Raw.srt"), "w") as f:
             # https://en.wikipedia.org/wiki/SubRip#SubRip_text_file_format
             index_to_write = 1
-            for i in range(len(hk_lines)):
+            for i in range(len(targlang_lines)):
                 start_time_ms = max(0, start_times[i] + subtitle_offset_to_add)
                 end_time_ms = max(0, end_times[i] + subtitle_offset_to_add)
                 assert start_time_ms < end_time_ms or start_time_ms == end_time_ms == 0
@@ -39,10 +57,10 @@ def create_srt_hk_and_tp(hk_lines, tp_lines, start_times, end_times, session_dir
                     continue
                 start_time_str = get_srt_time_str(start_time_ms)
                 end_time_str = get_srt_time_str(end_time_ms)
-                if lang_code == "Hk":
-                    subtitle_str = hk_lines[i]
-                elif lang_code == "Tp":
-                    subtitle_str = tp_lines[i]
+                if lang_code == targlang_abbrev:
+                    subtitle_str = targlang_lines[i]
+                elif lang_code == contlang_abbrev:
+                    subtitle_str = contlang_lines[i]
                 else:
                     raise ValueError(f"{lang_code = }")
                 f.write(f"{index_to_write}\n{start_time_str} --> {end_time_str}\n{subtitle_str}\n\n")
@@ -50,17 +68,17 @@ def create_srt_hk_and_tp(hk_lines, tp_lines, start_times, end_times, session_dir
         print(f"created srt file for {lang_code}")
 
 
-def create_srt_interleaved(lang_code, session_dir, hk_subtitles, tp_subtitles, eng_subtitles, other_lines, srt_fp=None):
+def create_srt_interleaved(lang_code, session_dir, targlang_subtitles, contlang_subtitles, eng_subtitles, other_lines, srt_fp=None):
     if srt_fp is None:
         srt_fp = os.path.join(session_dir, f"Subtitles{lang_code}.srt")
     with open(srt_fp, "w") as f:
         for i in range(len(other_lines)):
             lines_this_group = []
             if i % 4 == 2:
-                if "Hk" in lang_code:
-                    lines_this_group.append(hk_subtitles[i])
-                if "Tp" in lang_code:
-                    lines_this_group.append(tp_subtitles[i])
+                if targlang_abbrev in lang_code:
+                    lines_this_group.append(targlang_subtitles[i])
+                if contlang_abbrev in lang_code:
+                    lines_this_group.append(contlang_subtitles[i])
                 if "Eng" in lang_code:
                     lines_this_group.append(eng_subtitles[i])
             else:
@@ -72,18 +90,18 @@ def create_srt_interleaved(lang_code, session_dir, hk_subtitles, tp_subtitles, e
     print(f"wrote interleaved srt file for {lang_code}: {srt_fp}")
 
 
-def create_sfm_file(hk_lines, tp_lines, session_dir):
+def create_sfm_file(targlang_lines, contlang_lines, session_dir):
     with open(os.path.join(session_dir, "SfmOutput.sfm"), "w") as f:
         i = 0
         # f.write("\\_sh\tv3.0\t520\tText\n")
         f.write("\\id Auto-generated text\n")
-        for hk, tp in zip(hk_lines, tp_lines):
-            hk = hk.strip().replace(" ", "\t")
-            tp = tp.strip()
+        for targlang, contlang in zip(targlang_lines, contlang_lines):
+            targlang = targlang.strip().replace(" ", "\t")
+            contlang = contlang.strip()
             # f.write(f"\\ref wkjauto{i}\n")  # so Flex knows it's a new line, not like 1.1, 1.2, 1.3, etc.
             f.write("\\ref\n")  # so Flex knows it's a new line, not like 1.1, 1.2, 1.3, etc.
-            f.write(f"\\tx {hk}\t\n")
-            f.write(f"\\ft {tp}\t\n")
+            f.write(f"\\tx {targlang}\t\n")
+            f.write(f"\\ft {contlang}\t\n")
             f.write("\\pb\n")  # attempting to make my own "ParagraphBreak" tag
             f.write("\n")
             i += 1
@@ -100,8 +118,8 @@ def get_srt_time_str(time_ms):
 def get_texts_and_times_from_eaf(fp):
     assert fp.endswith(".eaf")
 
-    horokoi_texts = []
-    tp_texts = []
+    targlang_texts = []
+    contlang_texts = []
     start_times = []
     end_times = []
 
@@ -110,20 +128,20 @@ def get_texts_and_times_from_eaf(fp):
     # Horokoi is the TIER with LINGUISTIC_TYPE_REF="Transcription"
     # Tok Pisin is the TIER with LINGUISTIC_TYPE_REF="Translation"
     tier_els = root.findall("TIER")
-    hk_tier_el, = [el for el in tier_els if el.attrib["LINGUISTIC_TYPE_REF"] == "Transcription"]
-    tp_tier_el, = [el for el in tier_els if el.attrib["LINGUISTIC_TYPE_REF"] == "Translation"]
+    targlang_tier_el, = [el for el in tier_els if el.attrib["LINGUISTIC_TYPE_REF"] == "Transcription"]
+    contlang_tier_el, = [el for el in tier_els if el.attrib["LINGUISTIC_TYPE_REF"] == "Translation"]
     time_order_el, = root.findall("TIME_ORDER")
     time_slot_els = time_order_el.findall("TIME_SLOT")
     time_ms_by_id = {el.attrib["TIME_SLOT_ID"] : int(el.attrib["TIME_VALUE"]) for el in time_slot_els}
 
     annotation_id_order = []
-    hk_by_annotation_id = {}
-    tp_by_annotation_id = {}
+    targlang_by_annotation_id = {}
+    contlang_by_annotation_id = {}
     start_times_by_annotation_id = {}
     end_times_by_annotation_id = {}
 
-    hk_annotation_els = hk_tier_el.findall("ANNOTATION")
-    for el in hk_annotation_els:
+    targlang_annotation_els = targlang_tier_el.findall("ANNOTATION")
+    for el in targlang_annotation_els:
         align_el, = el.findall("ALIGNABLE_ANNOTATION")
         annotation_id = align_el.attrib["ANNOTATION_ID"]
         annotation_id_order.append(annotation_id)
@@ -132,55 +150,55 @@ def get_texts_and_times_from_eaf(fp):
         start_times_by_annotation_id[annotation_id] = time_ms_by_id[start_time_ref]
         end_times_by_annotation_id[annotation_id] = time_ms_by_id[end_time_ref]
         val_el, = align_el.findall("ANNOTATION_VALUE")
-        hk_text = val_el.text
-        if hk_text == "%ignore%":
-            hk_text = "..."
-        elif hk_text is None:
-            hk_text = "..."
-        hk_by_annotation_id[annotation_id] = hk_text
+        targlang_text = val_el.text
+        if targlang_text == "%ignore%":
+            targlang_text = "..."
+        elif targlang_text is None:
+            targlang_text = "..."
+        targlang_by_annotation_id[annotation_id] = targlang_text
 
     # the other tier has a different structure in the XML
-    tp_annotation_els = tp_tier_el.findall("ANNOTATION")
-    for el in tp_annotation_els:
+    contlang_annotation_els = contlang_tier_el.findall("ANNOTATION")
+    for el in contlang_annotation_els:
         ref_el, = el.findall("REF_ANNOTATION")
         annotation_id = ref_el.attrib["ANNOTATION_REF"]
         # THIS annotation, the Tok Pisin one, is ANNOTATION_ID, but we want to match it with the corresponding Horokoi, which is ANNOTATION_REF
         val_el, = ref_el.findall("ANNOTATION_VALUE")
-        tp_text = val_el.text
-        if tp_text is None:
-            tp_text = ""
+        contlang_text = val_el.text
+        if contlang_text is None:
+            contlang_text = ""
         # there don't seem to be %ignore% values here
-        tp_by_annotation_id[annotation_id] = tp_text
+        contlang_by_annotation_id[annotation_id] = contlang_text
 
     # now stitch the two languages together into their lists
     for annotation_id in annotation_id_order:
-        hk_text = hk_by_annotation_id[annotation_id]
+        targlang_text = targlang_by_annotation_id[annotation_id]
         try:
-            tp_text = tp_by_annotation_id[annotation_id]
+            contlang_text = contlang_by_annotation_id[annotation_id]
         except KeyError:
-            assert hk_text == "...", hk_text
-            tp_text = ""
-        horokoi_texts.append(hk_text)
-        tp_texts.append(tp_text)
+            assert targlang_text == "...", targlang_text
+            contlang_text = ""
+        targlang_texts.append(targlang_text)
+        contlang_texts.append(contlang_text)
         start_times.append(start_times_by_annotation_id[annotation_id])
         end_times.append(end_times_by_annotation_id[annotation_id])
 
-    return horokoi_texts, tp_texts, start_times, end_times
+    return targlang_texts, contlang_texts, start_times, end_times
 
 
-def write_texts_interleaved(horokoi_texts, tp_texts, session_dir):
-    assert len(horokoi_texts) == len(tp_texts)
-    with open(os.path.join(session_dir, "HorokoiText.txt"), "w") as f:
-        for i, l in enumerate(horokoi_texts):
+def write_texts_interleaved(targlang_texts, contlang_texts, session_dir):
+    assert len(targlang_texts) == len(contlang_texts)
+    with open(os.path.join(session_dir, f"{targlang_abbrev}Text.txt"), "w") as f:
+        for i, l in enumerate(targlang_texts):
             f.write(f"{i+1}. {l}\n")
-    with open(os.path.join(session_dir, "TpText.txt"), "w") as f:
-        for i, l in enumerate(tp_texts):
+    with open(os.path.join(session_dir, f"{contlang_abbrev}Text.txt"), "w") as f:
+        for i, l in enumerate(contlang_texts):
             f.write(f"{i+1}. {l}\n")
     with open(os.path.join(session_dir, "InterleavedText.txt"), "w") as f:
-        for i in range(len(horokoi_texts)):
-            hk_s = horokoi_texts[i]
-            tp_s = tp_texts[i]
-            f.write(f"{i+1}.\n{hk_s}\n{tp_s}\n----\n")
+        for i in range(len(targlang_texts)):
+            targlang_s = targlang_texts[i]
+            contlang_s = contlang_texts[i]
+            f.write(f"{i+1}.\n{targlang_s}\n{contlang_s}\n----\n")
 
 
 def get_subtitles_and_other_lines(lang_code, session_dir, other_lines_already_seen=None):
@@ -263,10 +281,10 @@ def run(fnames):
         assert max_n_values == 2, "too many languages"
 
         # have the user tell which language is which
-        horokoi_index = 0
-        tp_index = 1
-        horokoi_texts = []
-        tp_texts = []
+        targlang_index = 0
+        contlang_index = 1
+        targlang_texts = []
+        contlang_texts = []
         start_times = []
         end_times = []
 
@@ -276,28 +294,28 @@ def run(fnames):
             texts = labels_by_file_index_and_time[k]
             for i, text in enumerate(texts):
                 print(f"{i}: {text}")
-            istr = input(f"which index is Horokoi here? (default {horokoi_index})")
+            istr = input(f"which index is Horokoi here? (default {targlang_index})")
             if istr == "":
                 # don't change the index
                 pass
             else:
-                horokoi_index = int(istr)
-                tp_index = 1 - horokoi_index
-            horokoi_text = texts[horokoi_index]
-            tp_text = texts[tp_index]
-            horokoi_texts.append(horokoi_text)
-            tp_texts.append(tp_text)
+                targlang_index = int(istr)
+                contlang_index = 1 - targlang_index
+            targlang_text = texts[targlang_index]
+            contlang_text = texts[contlang_index]
+            targlang_texts.append(targlang_text)
+            contlang_texts.append(contlang_text)
             print()
 
     elif form == "SayMore":
-        horokoi_texts = []
-        tp_texts = []
+        targlang_texts = []
+        contlang_texts = []
         start_times = []
         end_times = []
         for fp in fps:
-            these_horokoi_texts, these_tp_texts, these_start_times, these_end_times = get_texts_and_times_from_eaf(fp)
-            horokoi_texts += these_horokoi_texts
-            tp_texts += these_tp_texts
+            these_targlang_texts, these_contlang_texts, these_start_times, these_end_times = get_texts_and_times_from_eaf(fp)
+            targlang_texts += these_targlang_texts
+            contlang_texts += these_contlang_texts
             start_times += these_start_times
             end_times += these_end_times
     else:
@@ -305,42 +323,42 @@ def run(fnames):
 
 
     # write the outputs once the input has been parsed / sorted
-    write_texts_interleaved(horokoi_texts, tp_texts, session_dir)
+    write_texts_interleaved(targlang_texts, contlang_texts, session_dir)
 
-    hk_lines = horokoi_texts
-    tp_lines = tp_texts
-    assert len(hk_lines) == len(tp_lines) == len(start_times) == len(end_times)
+    targlang_lines = targlang_texts
+    contlang_lines = contlang_texts
+    assert len(targlang_lines) == len(contlang_lines) == len(start_times) == len(end_times)
 
-    # create_sfm_file(hk_lines, tp_lines, session_dir)
+    # create_sfm_file(targlang_lines, contlang_lines, session_dir)
 
-    create_srt_hk_and_tp(hk_lines, tp_lines, start_times, end_times, session_dir, subtitle_offset_to_add)
+    create_srt_targlang_and_contlang(targlang_lines, contlang_lines, start_times, end_times, session_dir, subtitle_offset_to_add)
 
-    # once raw subtitle files are written, I need to make cleaned versions of Hk and Tp, and also an Eng one where I translate Tok Pisin to English, then run the program again and it will make the combined ones for HkTp and HkEng
-    # subtitle languages: Hiri Motu = Horokoi, Tok Pisin = Tok Pisin, English = English, ? = Horokoi + Tok Pisin, ? = Horokoi + English
+    # once raw subtitle files are written, I need to make cleaned versions of targlang and contlang, and also an Eng one where I translate contact language to English, then run the program again and it will make the combined ones for targ-cont and targ-eng
+    # on YouTube, select subtitle languages that encode which combination users want, and put the key in the description, e.g. Hiri Motu = Horokoi (target language), Tok Pisin = Tok Pisin (contact language), English = English, Tamil = Horokoi + Tok Pisin, Estonian = Horokoi + English
     other_lines = None
-    for lang_code in ["Hk_Cleaned", "Tp_Cleaned", "Eng"]:
+    for lang_code in [f"{targlang_abbrev}_Cleaned", f"{contlang_abbrev}_Cleaned", "Eng"]:
         print(f"{lang_code=}")
         subtitles, other_lines = get_subtitles_and_other_lines(lang_code, session_dir, other_lines_already_seen=other_lines)
-        if lang_code == "Hk_Cleaned":
-            hk_subtitles = [x for x in subtitles]
-        elif lang_code == "Tp_Cleaned":
-            tp_subtitles = [x for x in subtitles]
+        if lang_code == f"{targlang_abbrev}_Cleaned":
+            targlang_subtitles = [x for x in subtitles]
+        elif lang_code == f"{contlang_abbrev}_Cleaned":
+            contlang_subtitles = [x for x in subtitles]
         elif lang_code == "Eng":
             eng_subtitles = [x for x in subtitles]
         else:
             raise ValueError(f"{lang_code = }")
 
     # now interleave subtitles
-    for lang_code in ["HkTp", "HkEng"]:
+    for lang_code in [f"{targlang_abbrev}{contlang_abbrev}", f"{targlang_abbrev}Eng"]:
         print(f"{lang_code=}")
 
-        create_srt_interleaved(lang_code, session_dir, hk_subtitles, tp_subtitles, eng_subtitles, other_lines)
+        create_srt_interleaved(lang_code, session_dir, targlang_subtitles, contlang_subtitles, eng_subtitles, other_lines)
 
 
 
 if __name__ == "__main__":
     # for aligning the subtitles, pick a segment after you upload the first Horokoi subtitle file and watch the YouTube video with it, find in the subtitle editor where you want it to start (desired_start) vs where it starts in the .srt file (srt_start)
-    # do this BEFORE doing the cleaning of Hk and Tp files or translating to English, so that their times will be as desired on YouTube
+    # do this BEFORE doing the cleaning of target language and contact language files or translating to English, so that their times will be as desired on YouTube
     # - alternatively, for those files where you've already run VideoAudioAligning.py, use the EAF with the same filename as the video (video fp with .MTS replaced by .eaf)
 
     use_offset = False
