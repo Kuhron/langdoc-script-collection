@@ -10,10 +10,15 @@ parser = argparse.ArgumentParser(
     prog='TextFormatConverter',
     description='This program converts between text formats found in language documentation: .eaf from Saymore, .flextext from FLEx, and .srt subtitles for YouTube.',
 )
+
 parser.add_argument("--tl", dest="target_language", help="target language name, e.g. 'Horokoi'", required=True)
-parser.add_argument("--tls", dest="target_language_short", help="target language abbreviation, e.g. 'Hk'", required=True)
+parser.add_argument("--tls", dest="target_language_short", help="target language abbreviation for subtitle files, e.g. 'Hk'", required=True)
+parser.add_argument("--tlf", dest="target_language_flex", help="target language abbreviation in FLEx, e.g. 'gsp-fonipa'", required=True)
+
 parser.add_argument("--cl", dest="contact_language", help="contact language name, e.g. 'Tok Pisin'", required=True)
-parser.add_argument("--cls", dest="contact_language_short", help="contact language abbreviotion, e.g. 'Tp'", required=True)
+parser.add_argument("--cls", dest="contact_language_short", help="contact language abbreviation for subtitle files, e.g. 'Tp'", required=True)
+parser.add_argument("--clf", dest="contact_language_flex", help="contact language abbreviation in FLEx, e.g. 'en'", required=True)
+
 parser.add_argument("-i", "--in-file", help="path of input file", required=True)
 parser.add_argument("-o", "--out-file", help="path of output file", required=True)
 
@@ -28,13 +33,14 @@ if in_ext not in allowed_formats:
     raise Exception(f"Converting from/to {in_ext} is not supported")
 if out_ext not in allowed_formats:
     raise Exception(f"Converting from/to {out_ext} is not supported")
+if in_ext == out_ext:
+    raise Exception(f"can't convert {in_ext} to itself")
 print(f"converting from {in_ext} format to {out_ext} format")
 
-sys.exit()
 
+# ----
 
-
-contact_language_is_english = contlang_name == "English"
+contact_language_is_english = args.contact_language == "English"
 
 
 # extract the text labels in each language and print them for pasting into Flex
@@ -145,8 +151,8 @@ def get_texts_and_times_from_eaf(fp):
 
     tree = ET.parse(fp)
     root = tree.getroot()
-    # Horokoi is the TIER with LINGUISTIC_TYPE_REF="Transcription"
-    # Tok Pisin is the TIER with LINGUISTIC_TYPE_REF="Translation"
+    # target language is the TIER with LINGUISTIC_TYPE_REF="Transcription"
+    # contact language is the TIER with LINGUISTIC_TYPE_REF="Translation"
     tier_els = root.findall("TIER")
     targlang_tier_el, = [el for el in tier_els if el.attrib["LINGUISTIC_TYPE_REF"] == "Transcription"]
     contlang_tier_el, = [el for el in tier_els if el.attrib["LINGUISTIC_TYPE_REF"] == "Translation"]
@@ -174,7 +180,7 @@ def get_texts_and_times_from_eaf(fp):
         if targlang_text == "%ignore%":
             targlang_text = "..."
         elif targlang_text is None:
-            targlang_text = "..."
+            targlang_text = ""
         targlang_by_annotation_id[annotation_id] = targlang_text
 
     # the other tier has a different structure in the XML
@@ -375,8 +381,75 @@ def run(fnames):
         create_srt_interleaved(lang_code, session_dir, targlang_subtitles, contlang_subtitles, eng_subtitles, other_lines)
 
 
+def create_flextext_from_texts_and_times(targlang_texts, contlang_texts, start_times, end_times, output_fp, targlang_flex_abbrev, contlang_flex_abbrev):
+    # on Linux, can strip Windows CR line endings with:
+    # tr -d $'\r' < TextExamples/ZOOM0159_Cleaned_Source.wav.flextext > TextExamples/ZOOM0159_Cleaned_Source.wav_Newlines.flextext
+    # FLEx will import it fine either way
+
+    assert len(targlang_texts) == len(contlang_texts) == len(start_times) == len(end_times)
+    n = len(targlang_texts)
+    tree = ET.ElementTree("tree")
+    document = ET.Element("document")
+    interlinear_text = ET.SubElement(document, "interlinear-text")
+    # title_item = ET.SubElement(interlinear_text, "item", type="title", lang="en")
+    # title_item.text = media_fp
+    paragraphs = ET.SubElement(interlinear_text, "paragraphs")
+    for i in range(n):
+        paragraph = ET.SubElement(paragraphs, "paragraph")
+        phrases = ET.SubElement(paragraph, "phrases")
+        # is there ever more than one phrase exported by SayMore?
+        phrase = ET.SubElement(phrases, "phrase", begin_time_offset=str(start_times[i]), end_time_offset=str(end_times[i]))  # ignore media file
+        segnum_item = ET.SubElement(phrase, "item", type="segnum", lang="en")
+        segnum_item.text = str(i + 1)  # counts from 1
+
+        if targlang_texts[i] == "" and contlang_texts[i] == "":
+            # user has not gotten to this line in SayMore yet, it includes both fields as blank in the flextext
+            txt = ""
+            gls = ""
+        elif targlang_texts[i] == "..." and contlang_texts[i] == "":
+            # here SayMore includes only the txt field for some reason
+            txt = "..."
+            gls = None
+        else:
+            txt = targlang_texts[i]
+            gls = contlang_texts[i]
+
+        if txt is not None:
+            txt_item = ET.SubElement(phrase, "item", type="txt", lang=targlang_flex_abbrev)
+            txt_item.text = targlang_texts[i]
+        if gls is not None:
+            gls_item = ET.SubElement(phrase, "item", type="gls", lang=contlang_flex_abbrev)
+            gls_item.text = contlang_texts[i]
+        words = ET.SubElement(phrase, "words")  # nothing put here by SayMore
+
+    languages = ET.SubElement(interlinear_text, "languages")
+    targlang = ET.SubElement(languages, "language", lang=targlang_flex_abbrev)  # no text put here by SayMore
+    contlang = ET.SubElement(languages, "language", lang=contlang_flex_abbrev)  # no text put here by SayMore
+    # ignore media-files element for now
+
+    tree._setroot(document)
+    ET.indent(tree, space="  ", level=0)
+    tree.write(output_fp, encoding="utf-8", xml_declaration=True)  # can use short_empty_elements=False to get <x></x> rather than <x />
+    print(f"wrote XML to {output_fp}")
+
 
 if __name__ == "__main__":
+    targlang_texts, contlang_texts, start_times, end_times = get_texts_and_times_from_eaf(args.in_file)
+    print(f"{targlang_texts = }")
+    print(f"{contlang_texts = }")
+    print(f"{start_times = }")
+    print(f"{end_times = }")
+    print(len(targlang_texts))
+
+    create_flextext_from_texts_and_times(targlang_texts, contlang_texts, start_times, end_times, args.out_file, args.target_language_flex, args.contact_language_flex)
+
+
+    print("exiting")
+    sys.exit()
+
+    # OLD STUFF; TODO organize
+
+
     # for aligning the subtitles, pick a segment after you upload the first Horokoi subtitle file and watch the YouTube video with it, find in the subtitle editor where you want it to start (desired_start) vs where it starts in the .srt file (srt_start)
     # do this BEFORE doing the cleaning of target language and contact language files or translating to English, so that their times will be as desired on YouTube
     # - alternatively, for those files where you've already run VideoAudioAligning.py, use the EAF with the same filename as the video (video fp with .MTS replaced by .eaf)
