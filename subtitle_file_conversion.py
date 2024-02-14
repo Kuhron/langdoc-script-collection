@@ -1,20 +1,40 @@
-# Copyright (c) 2023 Wesley Kuhron Jones <wesleykuhronjones@gmail.com>
+# Copyright (c) 2024 Wesley Kuhron Jones <wesleykuhronjones@gmail.com>
 # Licensed under the MIT License, see below
 
 
-### PARAMS TO BE SET BY USER ###
+import argparse
+import os
+import sys
 
-# target language
-targlang_name = "Horokoi"
-targlang_abbrev = "Hk"  # don't make it "Eng" since that's used for English
+parser = argparse.ArgumentParser(
+    prog='TextFormatConverter',
+    description='This program converts between text formats found in language documentation: .eaf from Saymore, .flextext from FLEx, and .srt subtitles for YouTube.',
+)
+parser.add_argument("--tl", dest="target_language", help="target language name, e.g. 'Horokoi'", required=True)
+parser.add_argument("--tls", dest="target_language_short", help="target language abbreviation, e.g. 'Hk'", required=True)
+parser.add_argument("--cl", dest="contact_language", help="contact language name, e.g. 'Tok Pisin'", required=True)
+parser.add_argument("--cls", dest="contact_language_short", help="contact language abbreviotion, e.g. 'Tp'", required=True)
+parser.add_argument("-i", "--in-file", help="path of input file", required=True)
+parser.add_argument("-o", "--out-file", help="path of output file", required=True)
 
-# contact language
-contlang_name = "TokPisin"
-contlang_abbrev = "Tp"  # don't make it "Eng" since that's used for English
+args = parser.parse_args()
+print(args)
 
-### END USER PARAMS ###
+allowed_formats = [".eaf", ".flextext", ".srt"]
 
-contact_language_is_english = contact_language_name == "English"
+in_fname, in_ext = os.path.splitext(args.in_file)
+out_fname, out_ext = os.path.splitext(args.out_file)
+if in_ext not in allowed_formats:
+    raise Exception(f"Converting from/to {in_ext} is not supported")
+if out_ext not in allowed_formats:
+    raise Exception(f"Converting from/to {out_ext} is not supported")
+print(f"converting from {in_ext} format to {out_ext} format")
+
+sys.exit()
+
+
+
+contact_language_is_english = contlang_name == "English"
 
 
 # extract the text labels in each language and print them for pasting into Flex
