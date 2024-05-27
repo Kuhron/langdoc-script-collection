@@ -4,18 +4,12 @@ tags:
     - wav
     - video
 ---
-# TODO update
+# Measure time misalignment in the audio from video camera versus audio recorder
 Author: Wesley Kuhron Jones
 
-This script amplifies segments of a WAV audio file so that it is more audible when played on a laptop or speaker in the field during transcription sessions with language consultants. It has been optimized to use low amounts of RAM so that it can be run on small laptops like the Asus that I use in Papua New Guinea.
+This script uses correlation between two audio files to measure the amount of time that one is offset from the other. One audio stream is extracted from a video file (MTS, e.g. from the Canon XA11), and the other is taken from an audio file (WAV, e.g. from the Zoom H5 or H6).
 
-Procedure that I follow manually:
-
-- find a section of audio between silent spots (or at least significantly quieter than the voice volume)
-- amplify it and go past clipping to some extent, so the average amplitude is enough to hear well
-- ignore isolated small spikes that make the max amplitude much larger than the average, I've never had a problem with clipping too much making it hard for consultants to understand, so err on the side of being too loud
-
-This script automates this procedure.
+The time offset found from this script can then be used in other scripts to edit the timestamps in transcripts and subtitles.
 
 ## Setup
 Edit the variables in the area at the top of the script labeled "PARAMS TO BE SET BY USER".
@@ -28,13 +22,13 @@ pip install numpy matplotlib
 
 ## Execution
 ```shell
-python amplify_wav.py
+python video_audio_aligning.py
 ```
 
 ## Source
 ```python
 {%
-   include-markdown '../../amplify_wav.py'
+   include-markdown '../../video_audio_aligning.py'
    rewrite-relative-urls=false
    comments=false
 %}

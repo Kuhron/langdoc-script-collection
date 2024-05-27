@@ -1,15 +1,24 @@
+# Copyright (c) 2023 Wesley Kuhron Jones <wesleykuhronjones@gmail.com>
+# Licensed under the MIT License, see below
+
+
+### PARAMS TO BE SET BY USER ###
+
+parent_dir = "/media/wesley/LaCie/Horokoi/2023_Backup/FilesRenamed/"
+
+### END USER PARAMS ###
+
+
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-import moviepy
-import moviepy.editor
-from pydub import AudioSegment
+# import moviepy
+# import moviepy.editor
+# from pydub import AudioSegment
 import sys
 
-from Amplify import sliding_rms
-
-sys.path.insert(0, "/home/wesley/programming/Music")
-import WavUtil as wu
+from util.SoundFileStatistics import sliding_rms
+from util.WavFiles import RATE, MAX_AMPLITUDE, get_array_from_file
 
 
 def stereo_wav_to_mono(fp):
@@ -89,16 +98,16 @@ def make_correlation_file(video_dir, v_arr_rms, audio_fname, rms_window_samples)
 
     # find correlation between it and video audio at various offsets
     offsets_seconds_all = np.arange(-5, 3, 0.01)
-    offsets_samples_all = [int(round(wu.RATE * x)) for x in offsets_seconds_all]
+    offsets_samples_all = [int(round(RATE * x)) for x in offsets_seconds_all]
     correlations = []
-    a_arr = wu.read_wav_to_array(audio_fp)
+    a_arr = get_array_from_file(audio_fp)
     a_arr_rms = sliding_rms(a_arr, rms_window_samples)
 
     # make it so we slide the audio and keep the video in place, since I am making edited .eaf files that will match the video time
     correlations, offsets_samples_used = find_correlations_brute_force(v_arr_rms, a_arr_rms, offsets_samples_all)
     # correlations, offsets_samples_used = find_correlations_binary_search(v_arr_rms, a_arr_rms, offsets_samples_all)
 
-    offsets_seconds_used = [x/wu.RATE for x in offsets_samples_used]
+    offsets_seconds_used = [x/RATE for x in offsets_samples_used]
     assert len(offsets_samples_used) == len(correlations)
     # plt.plot(offsets_seconds_used, correlations)
     # plt.show()
@@ -116,7 +125,7 @@ def get_correlation_fp(audio_fname, video_dir):
 
 def get_max_correlation_position(audio_fnames, video_dir):
     corr_fps = [get_correlation_fp(audio_fname, video_dir) for audio_fname in audio_fnames]
-    discrepancy_tolerance = 0.05 * wu.RATE
+    discrepancy_tolerance = 0.05 * RATE
     best_offsets = []
     for corr_fp in corr_fps:
         with open(corr_fp) as f:
@@ -182,81 +191,81 @@ def create_shifted_eaf_file(existing_eaf_fp, new_eaf_fp, best_offset_samples, al
 
 
 
-parent_dir = "/media/wesley/LaCie/Horokoi/2023_Backup/FilesRenamed/"
-items = os.listdir(parent_dir)
-items_to_exclude = ["VDSTIMULI", "OBJPSTIMULI", "PE2", "NOTEBOOK"] + [f"E{x}" for x in range(12, 21+1)]
-items_with_exceptions = ["POT3", "GEYANGO"]  # multiple REC files, TODO fix these later
+if __name__ == "__main__":
+    items = os.listdir(parent_dir)
+    items_to_exclude = ["VDSTIMULI", "OBJPSTIMULI", "PE2", "NOTEBOOK"] + [f"E{x}" for x in range(12, 21+1)]
+    items_with_exceptions = ["POT3", "GEYANGO"]  # multiple REC files, TODO fix these later
 
-# POT3 is cleanly divided into two recordings, REC1 and REC2, each with video, LR audio, and TR1 audio
-# GEYANGO is divided into two recordings, and the first has two videos (REC1PART1, REC1PART2) with no time gap between them, and one audio (REC1 LR/TR1), and the second has one video (REC2) and one audio (REC2 LR/TR1)
-# CHOREGIRL has two videos with some missing time between them (RECPART1, RECPART2), and one audio (REC LR/TR1/TR2)
+    # POT3 is cleanly divided into two recordings, REC1 and REC2, each with video, LR audio, and TR1 audio
+    # GEYANGO is divided into two recordings, and the first has two videos (REC1PART1, REC1PART2) with no time gap between them, and one audio (REC1 LR/TR1), and the second has one video (REC2) and one audio (REC2 LR/TR1)
+    # CHOREGIRL has two videos with some missing time between them (RECPART1, RECPART2), and one audio (REC LR/TR1/TR2)
 
-# not going to do POT3 or GEYANGO right now because they don't have transcripts in Paradisec as of 2023-09-07
-# doing CHOREGIRL manually (wrangling in Python shell and Gedit)
+    # not going to do POT3 or GEYANGO right now because they don't have transcripts in Paradisec as of 2023-09-07
+    # doing CHOREGIRL manually (wrangling in Python shell and Gedit)
 
-# make the new EAF files have same name as the MTS file they are to be used as subtitles for (and are being time-aligned with)
+    # make the new EAF files have same name as the MTS file they are to be used as subtitles for (and are being time-aligned with)
 
-for item in items:
-    print(f"current item: {item}")
-    if item in items_to_exclude or item in items_with_exceptions:
-        print("skipping\n")
-        continue
-    video_dir = os.path.join(parent_dir, item)
+    for item in items:
+        print(f"current item: {item}")
+        if item in items_to_exclude or item in items_with_exceptions:
+            print("skipping\n")
+            continue
+        video_dir = os.path.join(parent_dir, item)
 
-    if item == "CHOREGIRL":
-        rec_names = ["RECPART1", "RECPART2"]
-    elif item == "POT3" or item == "GEYANGO":
-        raise NotImplementedError("wrangle these items later once have checked the transcribers' work")
-    else:
-        rec_names = ["REC"]
+        if item == "CHOREGIRL":
+            rec_names = ["RECPART1", "RECPART2"]
+        elif item == "POT3" or item == "GEYANGO":
+            raise NotImplementedError("wrangle these items later once have checked the transcribers' work")
+        else:
+            rec_names = ["REC"]
 
-    for rec_name in rec_names:
-        need_to_make_correlation_files = (item != "CHOREGIRL")  # exclude ones I did manual offsets for, such as CHOREGIRL
-        if need_to_make_correlation_files:
-            video_fname = f"HK1-{item}-{rec_name}.MTS"
-            audio_prefix = f"HK1-{item}-{rec_name}"
-            audio_fps_in_dir_raw = [x for x in os.listdir(video_dir) if x.startswith(audio_prefix) and x.endswith(".WAV")]
-            tracks = [x.replace(audio_prefix+"_", "").replace(".WAV", "") for x in audio_fps_in_dir_raw]
-            tracks = [x for x in tracks if x != "LR-Mono"]  # extra audio file if we've already run the mono wav creation function, don't double it up in the list (since create_mono_wavs will think it's another audio track like TR1/TR2 and add it to the list of audio files after already adding it by converting the plain LR fname into LR-Mono, so we'll end up with two LR-Mono in the list)
+        for rec_name in rec_names:
+            need_to_make_correlation_files = (item != "CHOREGIRL")  # exclude ones I did manual offsets for, such as CHOREGIRL
+            if need_to_make_correlation_files:
+                video_fname = f"HK1-{item}-{rec_name}.MTS"
+                audio_prefix = f"HK1-{item}-{rec_name}"
+                audio_fps_in_dir_raw = [x for x in os.listdir(video_dir) if x.startswith(audio_prefix) and x.endswith(".WAV")]
+                tracks = [x.replace(audio_prefix+"_", "").replace(".WAV", "") for x in audio_fps_in_dir_raw]
+                tracks = [x for x in tracks if x != "LR-Mono"]  # extra audio file if we've already run the mono wav creation function, don't double it up in the list (since create_mono_wavs will think it's another audio track like TR1/TR2 and add it to the list of audio files after already adding it by converting the plain LR fname into LR-Mono, so we'll end up with two LR-Mono in the list)
 
-            if item == "TRAP3":
-                tracks.remove("TR2")  # blank file from me accidentally leaving the second audio channel on while recording
+                if item == "TRAP3":
+                    tracks.remove("TR2")  # blank file from me accidentally leaving the second audio channel on while recording
 
-            video_audio_mono_fp, *audio_fps = create_mono_wavs(video_dir, video_fname, audio_prefix, tracks)
-            audio_fnames = [os.path.basename(audio_fp) for audio_fp in audio_fps]
-            print(f"{audio_fnames=}")
+                video_audio_mono_fp, *audio_fps = create_mono_wavs(video_dir, video_fname, audio_prefix, tracks)
+                audio_fnames = [os.path.basename(audio_fp) for audio_fp in audio_fps]
+                print(f"{audio_fnames=}")
 
-            if all(os.path.exists(get_correlation_fp(audio_fname, video_dir)) for audio_fname in audio_fnames):
-                print(f"all correlations already computed for item {item}")
-            else:
-                rms_window_seconds = 0.2
-                rms_window_samples = int(round(rms_window_seconds * wu.RATE))
+                if all(os.path.exists(get_correlation_fp(audio_fname, video_dir)) for audio_fname in audio_fnames):
+                    print(f"all correlations already computed for item {item}")
+                else:
+                    rms_window_seconds = 0.2
+                    rms_window_samples = int(round(rms_window_seconds * RATE))
 
-                v_arr = wu.read_wav_to_array(video_audio_mono_fp)
-                v_arr_rms = sliding_rms(v_arr, rms_window_samples)
-                v_len = len(v_arr_rms)
+                    v_arr = get_array_from_file(video_audio_mono_fp)
+                    v_arr_rms = sliding_rms(v_arr, rms_window_samples)
+                    v_len = len(v_arr_rms)
 
-                for audio_fname in audio_fnames:
-                    make_correlation_file(video_dir, v_arr_rms, audio_fname, rms_window_samples)
+                    for audio_fname in audio_fnames:
+                        make_correlation_file(video_dir, v_arr_rms, audio_fname, rms_window_samples)
 
-            best_offset_samples = get_max_correlation_position(audio_fnames, video_dir)
-            print(f"{best_offset_samples = }")
-            print()
+                best_offset_samples = get_max_correlation_position(audio_fnames, video_dir)
+                print(f"{best_offset_samples = }")
+                print()
 
-            if best_offset_samples is None:
-                input("check")
+                if best_offset_samples is None:
+                    input("check")
 
-            # TODO make new .eaf with edited time refs (in milliseconds)
-            new_eaf_fname = video_fname.replace(".MTS", ".eaf")
-            new_eaf_fp = os.path.join(video_dir, new_eaf_fname)
-            existing_eaf_fname = f"HK1-{item}-TRANSCRIPT.eaf"
-            existing_eaf_fp = os.path.join(video_dir, existing_eaf_fname)
-            if not os.path.exists(existing_eaf_fp):
-                print(f"item {item} is not transcribed yet; skipping\n")
-            else:
-                create_shifted_eaf_file(existing_eaf_fp, new_eaf_fp, best_offset_samples, allow_overwrite=True)
+                # TODO make new .eaf with edited time refs (in milliseconds)
+                new_eaf_fname = video_fname.replace(".MTS", ".eaf")
+                new_eaf_fp = os.path.join(video_dir, new_eaf_fname)
+                existing_eaf_fname = f"HK1-{item}-TRANSCRIPT.eaf"
+                existing_eaf_fp = os.path.join(video_dir, existing_eaf_fname)
+                if not os.path.exists(existing_eaf_fp):
+                    print(f"item {item} is not transcribed yet; skipping\n")
+                else:
+                    create_shifted_eaf_file(existing_eaf_fp, new_eaf_fp, best_offset_samples, allow_overwrite=True)
 
-        # make SRT subtitle file based on the new EAF, then watch the video together with subtitles in VLC (I could use MoviePy to make a new video that has the subtitles on it, but don't feel like messing with that just for spot-checking)
-        # spot check EVERY video to make sure it's aligned
+            # make SRT subtitle file based on the new EAF, then watch the video together with subtitles in VLC (I could use MoviePy to make a new video that has the subtitles on it, but don't feel like messing with that just for spot-checking)
+            # spot check EVERY video to make sure it's aligned
 
 
