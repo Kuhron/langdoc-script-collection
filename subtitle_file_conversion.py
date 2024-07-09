@@ -6,6 +6,17 @@ import argparse
 import os
 import sys
 
+
+# TODO split things into small functions to convert between:
+# eaf, flextext, srt
+# eaf has: times in ms, target language lines, contact language lines, DEFAULT_LOCALE="ipa-ext" for transcription, DEFAULT_LOCALE="en" for translation, timeslot numbers
+# flextext has: times in ms, lang="gsp-fonipa" for transcription, lang="en" for translation, line numbers, target language lines, contact language lines
+# srt has: line numbers, times in "HH:MM:SS,sss", lines in target language and/or contact language and/or English
+
+# TODO make function to combine subtitles from two srt files into one file
+# (to be used once the individual files are cleaned up, e.g. make Hk and Tp files first, clean the subtitles up, then combine them to get the HkTp file)
+
+
 parser = argparse.ArgumentParser(
     prog='TextFormatConverter',
     description='This program converts between text formats found in language documentation: .eaf from Saymore, .flextext from FLEx, and .srt subtitles for YouTube.',
@@ -429,6 +440,11 @@ def create_flextext_from_texts_and_times(targlang_texts, contlang_texts, start_t
 
     tree._setroot(document)
     ET.indent(tree, space="  ", level=0)
+
+    # debug
+    # s = ET.tostring(tree.getroot())
+    # print(s.decode("utf-8"))
+
     tree.write(output_fp, encoding="utf-8", xml_declaration=True)  # can use short_empty_elements=False to get <x></x> rather than <x />
     print(f"wrote XML to {output_fp}")
 
