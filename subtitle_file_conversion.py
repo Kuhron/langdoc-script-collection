@@ -34,16 +34,15 @@ parser.add_argument("-i", "--in-file", help="path of input file", required=True)
 parser.add_argument("-o", "--out-file", help="path of output file", required=True)
 
 args = parser.parse_args()
-print(args)
 
 allowed_formats = [".eaf", ".flextext", ".srt"]
 
 in_fname, in_ext = os.path.splitext(args.in_file)
 out_fname, out_ext = os.path.splitext(args.out_file)
 if in_ext not in allowed_formats:
-    raise Exception(f"Converting from/to {in_ext} is not supported")
+    raise Exception(f"converting from/to {in_ext} is not supported")
 if out_ext not in allowed_formats:
-    raise Exception(f"Converting from/to {out_ext} is not supported")
+    raise Exception(f"converting from/to {out_ext} is not supported")
 if in_ext == out_ext:
     raise Exception(f"can't convert {in_ext} to itself")
 print(f"converting from {in_ext} format to {out_ext} format")
@@ -61,26 +60,48 @@ import sys
 from xml.etree import ElementTree as ET
 
 
-def create_srt_file_from_eaf(fp, session_dir, subtitle_offset_to_add, srt_fp=None):
-    assert fp.endswith(".eaf"), "fp must end with '.eaf'"
+def convert_eaf_to_srt(in_file, session_dir, subtitle_offset_to_add, out_file):
+    verify_extension(in_file, ".eaf")
+    verify_extension(out_file, ".srt")
 
     targlang_texts, contlang_texts, start_times, end_times = get_texts_and_times_from_eaf(eaf_fp)
     targlang_lines = targlang_texts
     contlang_lines = contlang_texts
-    create_srt_targlang_and_contlang(targlang_lines, contlang_lines, start_times, end_times, session_dir, subtitle_offset_to_add)
-    write_texts_interleaved(targlang_texts, contlang_texts, session_dir)
-    targlang_subtitles, other_lines = get_subtitles_and_other_lines(f"{targlang_abbrev}_Raw", session_dir, other_lines_already_seen=None)
-    contlang_subtitles, other_lines = get_subtitles_and_other_lines(f"{contlang_abbrev}_Raw", session_dir, other_lines_already_seen=other_lines)
 
-    lang_code = f"{targlang_abbrev}{contlang_abbrev}"
-    eng_subtitles = None
-    create_srt_interleaved(lang_code, session_dir, targlang_subtitles, contlang_subtitles, eng_subtitles, other_lines, srt_fp=srt_fp)
+    print(f"{targlang_texts = }")
+
+    raise NotImplementedError
+    # create_srt_targlang_and_contlang(targlang_lines, contlang_lines, start_times, end_times, session_dir, subtitle_offset_to_add)
+    # write_texts_interleaved(targlang_texts, contlang_texts, session_dir)
+    # targlang_subtitles, other_lines = get_subtitles_and_other_lines(f"{targlang_abbrev}_Raw", session_dir, other_lines_already_seen=None)
+    # contlang_subtitles, other_lines = get_subtitles_and_other_lines(f"{contlang_abbrev}_Raw", session_dir, other_lines_already_seen=other_lines)
+
+    # lang_code = f"{targlang_abbrev}{contlang_abbrev}"
+    # eng_subtitles = None
+    # create_srt_interleaved(lang_code, session_dir, targlang_subtitles, contlang_subtitles, eng_subtitles, other_lines, srt_fp=out_file)
+
+
+def convert_eaf_to_flextext(in_file, out_file, target_language_flex, contact_language_flex, debug=False):
+    targlang_texts, contlang_texts, start_times, end_times = get_texts_and_times_from_eaf(in_file)
+    if debug:
+        print(f"{targlang_texts = }")
+        print(f"{contlang_texts = }")
+        print(f"{start_times = }")
+        print(f"{end_times = }")
+        print(len(targlang_texts))
+
+    create_flextext_from_texts_and_times(targlang_texts, contlang_texts, start_times, end_times, out_file, target_language_flex, contact_language_flex)
+
+
+def verify_extension(fp, ext):
+    _, got_ext = os.path.splitext(fp)
+    assert got_ext == ext, f"expected file of extension {ext}, got {got_ext}:\n{fp}"
 
 
 def create_srt_targlang_and_contlang(targlang_lines, contlang_lines, start_times, end_times, session_dir, subtitle_offset_to_add):
     for lang_code in [targlang_abbrev, contlang_abbrev]:
         # don't bother with one for contlang-english or targlang-contlang-english, we mostly care about people understanding the target language in either the contact language or English
-        # so of all 8 possibilities: users can do: 0, targ, cont, eng, targ-cont, targ-eng, (X)cont-engEng, (X)targ-cont-eng
+        # so of all 8 possibilities: users can do: 0, targ, cont, eng, targ-cont, targ-eng, (X)cont-eng, (X)targ-cont-eng
 
         with open(os.path.join(session_dir, f"Subtitles{lang_code}_Raw.srt"), "w") as f:
             # https://en.wikipedia.org/wiki/SubRip#SubRip_text_file_format
@@ -280,7 +301,8 @@ def get_subtitles_and_other_lines(lang_code, session_dir, other_lines_already_se
     return subtitles, other_lines
 
 
-def run(fnames):
+def old_crap_1(fnames):
+    raise Exception("this is a mess, do not use, need to refactor")
     form = None
     if all(fname.endswith("TranscriptionLabels.txt") for fname in fnames):
         form = "Audacity"
@@ -370,7 +392,7 @@ def run(fnames):
 
     create_srt_targlang_and_contlang(targlang_lines, contlang_lines, start_times, end_times, session_dir, subtitle_offset_to_add)
 
-    # once raw subtitle files are written, I need to make cleaned versions of targlang and contlang, and also an Eng one where I translate contact language to English, then run the program again and it will make the combined ones for targ-cont and targ-eng
+    # once raw subtitle files are written, I need to make cleaned versions of targlang and contlang, and also an Eng one where I translate contact language to English, then old_crap_1 the program again and it will make the combined ones for targ-cont and targ-eng
     # on YouTube, select subtitle languages that encode which combination users want, and put the key in the description, e.g. Hiri Motu = Horokoi (target language), Tok Pisin = Tok Pisin (contact language), English = English, Tamil = Horokoi + Tok Pisin, Estonian = Horokoi + English
     other_lines = None
     for lang_code in [f"{targlang_abbrev}_Cleaned", f"{contlang_abbrev}_Cleaned", "Eng"]:
@@ -390,6 +412,51 @@ def run(fnames):
         print(f"{lang_code=}")
 
         create_srt_interleaved(lang_code, session_dir, targlang_subtitles, contlang_subtitles, eng_subtitles, other_lines)
+
+
+def old_crap_2():
+    # OLD STUFF; TODO organize
+
+    # for aligning the subtitles, pick a segment after you upload the first Horokoi subtitle file and watch the YouTube video with it, find in the subtitle editor where you want it to start (desired_start) vs where it starts in the .srt file (srt_start)
+    # do this BEFORE doing the cleaning of target language and contact language files or translating to English, so that their times will be as desired on YouTube
+    # - alternatively, for those files where you've already old_crap_1 VideoAudioAligning.py, use the EAF with the same filename as the video (video fp with .MTS replaced by .eaf)
+
+    use_offset = False
+    if use_offset:
+        srt_start_ms = 27694
+        desired_start_s = 25
+        desired_start_frame = 21
+
+        frames_per_s = 30
+        desired_start_ms = int(1000*(desired_start_s + desired_start_frame/frames_per_s))
+        subtitle_offset_to_add = desired_start_ms - srt_start_ms
+    else:
+        subtitle_offset_to_add = 0
+
+    old_crap_1_in_transcriptions_dir = False
+    if old_crap_1_in_transcriptions_dir:
+        session_dir = "Sessions/VD5"
+        # session_dirs = [os.path.join("Sessions", x) for x in os.listdir("Sessions") if os.path.isdir(os.path.join("Sessions", x))]
+        print(f"{session_dir = }")
+        fnames = [x for x in os.listdir(session_dir) if x.endswith(".annotations.eaf") or x.endswith("TranscriptionLabels.txt")]
+        old_crap_1(fnames)
+
+    old_crap_1_in_ehd_paradisec_files_renamed_dir = True
+    if old_crap_1_in_ehd_paradisec_files_renamed_dir:
+        parent_dir = "/media/wesley/LaCie/Horokoi/2023_Backup/FilesRenamed/"
+        items = os.listdir(parent_dir)
+        # find all pairs of MTS and EAF files that have same filename
+        for item in items:
+            session_dir = os.path.join(parent_dir, item)
+            fnames = [x for x in os.listdir(session_dir) if x.endswith(".MTS") or x.endswith(".eaf")]
+            bases = set(os.path.splitext(fname)[0] for fname in fnames)
+            matches = [x for x in bases if os.path.exists(os.path.join(session_dir, x + ".MTS")) and os.path.exists(os.path.join(session_dir, x + ".eaf"))]
+            if len(matches) > 0:
+                for base in matches:
+                    eaf_fp = os.path.join(parent_dir, item, base + ".eaf")
+                    print(eaf_fp)
+                    srt_fp = eaf_fp.replace(".eaf", ".srt")
+                    convert_eaf_to_srt(eaf_fp, session_dir, subtitle_offset_to_add, srt_fp)
 
 
 def create_flextext_from_texts_and_times(targlang_texts, contlang_texts, start_times, end_times, output_fp, targlang_flex_abbrev, contlang_flex_abbrev):
@@ -450,59 +517,9 @@ def create_flextext_from_texts_and_times(targlang_texts, contlang_texts, start_t
 
 
 if __name__ == "__main__":
-    targlang_texts, contlang_texts, start_times, end_times = get_texts_and_times_from_eaf(args.in_file)
-    print(f"{targlang_texts = }")
-    print(f"{contlang_texts = }")
-    print(f"{start_times = }")
-    print(f"{end_times = }")
-    print(len(targlang_texts))
-
-    create_flextext_from_texts_and_times(targlang_texts, contlang_texts, start_times, end_times, args.out_file, args.target_language_flex, args.contact_language_flex)
-
-
-    print("exiting")
-    sys.exit()
-
-    # OLD STUFF; TODO organize
-
-
-    # for aligning the subtitles, pick a segment after you upload the first Horokoi subtitle file and watch the YouTube video with it, find in the subtitle editor where you want it to start (desired_start) vs where it starts in the .srt file (srt_start)
-    # do this BEFORE doing the cleaning of target language and contact language files or translating to English, so that their times will be as desired on YouTube
-    # - alternatively, for those files where you've already run VideoAudioAligning.py, use the EAF with the same filename as the video (video fp with .MTS replaced by .eaf)
-
-    use_offset = False
-    if use_offset:
-        srt_start_ms = 27694
-        desired_start_s = 25
-        desired_start_frame = 21
-
-        frames_per_s = 30
-        desired_start_ms = int(1000*(desired_start_s + desired_start_frame/frames_per_s))
-        subtitle_offset_to_add = desired_start_ms - srt_start_ms
+    if in_ext == ".eaf" and out_ext == ".srt":
+        convert_eaf_to_srt(args.in_file, session_dir, subtitle_offset_to_add, args.out_file)
+    elif in_ext == ".eaf" and out_ext == ".flextext":
+        convert_eaf_to_flextext(args.in_file, args.out_file, args.target_language_flex, args.contact_language_flex, debug=args.debug)
     else:
-        subtitle_offset_to_add = 0
-
-    run_in_transcriptions_dir = False
-    if run_in_transcriptions_dir:
-        session_dir = "Sessions/VD5"
-        # session_dirs = [os.path.join("Sessions", x) for x in os.listdir("Sessions") if os.path.isdir(os.path.join("Sessions", x))]
-        print(f"{session_dir = }")
-        fnames = [x for x in os.listdir(session_dir) if x.endswith(".annotations.eaf") or x.endswith("TranscriptionLabels.txt")]
-        run(fnames)
-
-    run_in_ehd_paradisec_files_renamed_dir = True
-    if run_in_ehd_paradisec_files_renamed_dir:
-        parent_dir = "/media/wesley/LaCie/Horokoi/2023_Backup/FilesRenamed/"
-        items = os.listdir(parent_dir)
-        # find all pairs of MTS and EAF files that have same filename
-        for item in items:
-            session_dir = os.path.join(parent_dir, item)
-            fnames = [x for x in os.listdir(session_dir) if x.endswith(".MTS") or x.endswith(".eaf")]
-            bases = set(os.path.splitext(fname)[0] for fname in fnames)
-            matches = [x for x in bases if os.path.exists(os.path.join(session_dir, x + ".MTS")) and os.path.exists(os.path.join(session_dir, x + ".eaf"))]
-            if len(matches) > 0:
-                for base in matches:
-                    eaf_fp = os.path.join(parent_dir, item, base + ".eaf")
-                    print(eaf_fp)
-                    srt_fp = eaf_fp.replace(".eaf", ".srt")
-                    create_srt_file_from_eaf(eaf_fp, session_dir, subtitle_offset_to_add, srt_fp)
+        raise NotImplementedError(f"{in_ext} -> {out_ext}")
