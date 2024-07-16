@@ -31,46 +31,71 @@ parser.add_argument("--cls", dest="contact_language_short", help="contact langua
 parser.add_argument("--clf", dest="contact_language_flex", help="contact language abbreviation in FLEx, e.g. 'en'", required=True)
 
 parser.add_argument("-i", "--in-file", help="path of input file", required=True)
-parser.add_argument("-o", "--out-file", help="path of output file", required=True)
+parser.add_argument("-o", "--out-file", help="path of output file", required=False)
 
-args = parser.parse_args()
-
-allowed_formats = [".eaf", ".flextext", ".srt"]
-
-in_fname, in_ext = os.path.splitext(args.in_file)
-out_fname, out_ext = os.path.splitext(args.out_file)
-if in_ext not in allowed_formats:
-    raise Exception(f"converting from/to {in_ext} is not supported")
-if out_ext not in allowed_formats:
-    raise Exception(f"converting from/to {out_ext} is not supported")
-if in_ext == out_ext:
-    raise Exception(f"can't convert {in_ext} to itself")
-print(f"converting from {in_ext} format to {out_ext} format")
+parser.add_argument("--offset", help="time offset to add, in milliseconds", required=False, default=0)
+parser.add_argument("--sub-langs", help="language codes to write .srt files for (only valid if outputting .srt): 't' for target language only, 'c' for contact language only, 'tc' for a combination of target and contact languages in the same subtitle file, or a comma-separated combination of these", required=False)
 
 
 # ----
 
-contact_language_is_english = args.contact_language == "English"
-
-
-# extract the text labels in each language and print them for pasting into Flex
 
 import os
 import sys
 from xml.etree import ElementTree as ET
 
 
-def convert_eaf_to_srt(in_file, session_dir, subtitle_offset_to_add, out_file):
+def validate_extension_conversion(in_ext, out_ext):
+    allowed_formats = [".eaf", ".flextext", ".srt"]
+    if in_ext not in allowed_formats:
+        raise Exception(f"converting from/to {in_ext} is not supported")
+    if out_ext not in allowed_formats:
+        raise Exception(f"converting from/to {out_ext} is not supported")
+    if in_ext == out_ext:
+        raise Exception(f"can't convert {in_ext} to itself")
+
+
+def convert_eaf_to_srt(in_file, out_file_prefix, langs, tls, cls, offset_ms):
     verify_extension(in_file, ".eaf")
-    verify_extension(out_file, ".srt")
 
-    targlang_texts, contlang_texts, start_times, end_times = get_texts_and_times_from_eaf(eaf_fp)
-    targlang_lines = targlang_texts
-    contlang_lines = contlang_texts
+    if langs is None:
+        raise Exception("must provide --sub-langs if outputting .srt")
+    else:
+        langs = ["".join(sorted(x.strip())) for x in langs.split(",")]
+        new_langs = set()
+        for x in langs:
+            new_x = "".join(sorted(x.strip()))
+            assert new_x in ["t", "c", "ct"], f"unknown sub lang code: {x}"  # user sees what they input but we alphabetized it for checking
+            new_langs.add(x)
+        langs = new_langs
+    
+    output_t = "t" in langs
+    output_c = "c" in langs
+    output_tc = "ct" in langs
 
-    print(f"{targlang_texts = }")
+    targlang_lines, contlang_lines, start_times, end_times = get_texts_and_times_from_eaf(in_file)
+    start_times = [x + offset_ms for x in start_times]
+    end_times = [x + offset_ms for x in end_times]
 
-    raise NotImplementedError
+    if out_file_prefix is None:
+        # e.g. if we have input file "BG.eaf", then .srt files will be "BG_Hk.srt", "BG_Tp.srt", "BG_HkTp.srt"
+        out_file_prefix, in_ext = os.path.splitext(in_file)
+
+    if output_t:
+        # make the target-language .srt
+        out_file = f"{out_file_prefix}_{tls}.srt"
+        create_single_language_srt(targlang_lines, tls, start_times, end_times, out_file)
+    if output_c:
+        # make the contact-language .srt
+        out_file = f"{out_file_prefix}_{cls}.srt"
+        create_single_language_srt(contlang_lines, cls, start_times, end_times, out_file)
+    if output_tc:
+        # make the target-and-contact-language .srt
+        out_file = f"{out_file_prefix}_{tls}{cls}.srt"
+        create_dual_language_srt(targlang_lines, contlang_lines, tls, cls, start_times, end_times, out_file)
+
+    return
+
     # create_srt_targlang_and_contlang(targlang_lines, contlang_lines, start_times, end_times, session_dir, subtitle_offset_to_add)
     # write_texts_interleaved(targlang_texts, contlang_texts, session_dir)
     # targlang_subtitles, other_lines = get_subtitles_and_other_lines(f"{targlang_abbrev}_Raw", session_dir, other_lines_already_seen=None)
@@ -79,6 +104,39 @@ def convert_eaf_to_srt(in_file, session_dir, subtitle_offset_to_add, out_file):
     # lang_code = f"{targlang_abbrev}{contlang_abbrev}"
     # eng_subtitles = None
     # create_srt_interleaved(lang_code, session_dir, targlang_subtitles, contlang_subtitles, eng_subtitles, other_lines, srt_fp=out_file)
+
+
+def create_single_language_srt(lines, lang_abbrev, start_times, end_times, out_file):
+    # https://en.wikipedia.org/wiki/SubRip#SubRip_text_file_format
+    if os.path.exists(out_file):
+        print(f".srt file exists: {out_file}\nAborting.")
+        sys.exit()
+
+    line_number_to_write = 1  # may not be the same as just i+1 if we skip some lines
+    lines_to_write = []
+    for i, line in enumerate(lines):
+        start_time_ms = max(0, start_times[i])
+        end_time_ms = max(0, end_times[i])
+        assert start_time_ms < end_time_ms or start_time_ms == end_time_ms == 0, f"bad start and end times: {start_time_ms}, {end_time_ms}"
+        if end_time_ms == 0:
+            print(f"offset led to line being excluded ({i=}): {line!r}")
+            continue
+        start_time_str = get_srt_time_str(start_time_ms)
+        end_time_str = get_srt_time_str(end_time_ms)
+        line_to_write = f"{line_number_to_write}\n{start_time_str} --> {end_time_str}\n{line}\n\n"
+        lines_to_write.append(line_to_write)
+        line_number_to_write += 1
+    
+    with open(out_file, "w") as f:
+        for line in lines_to_write:
+            f.write(line)
+    print(f"wrote subtitles to {out_file}")
+
+
+def create_dual_language_srt(lines_1, lines_2, lang_abbrev_1, lang_abbrev_2, start_times, end_times, out_file):
+    lines = [l1 + "\n" + l2 for l1, l2 in zip(lines_1, lines_2)]
+    lang_abbrev = lang_abbrev_1 + lang_abbrev_2
+    create_single_language_srt(lines, lang_abbrev, start_times, end_times, out_file)
 
 
 def convert_eaf_to_flextext(in_file, out_file, target_language_flex, contact_language_flex, debug=False):
@@ -96,56 +154,6 @@ def convert_eaf_to_flextext(in_file, out_file, target_language_flex, contact_lan
 def verify_extension(fp, ext):
     _, got_ext = os.path.splitext(fp)
     assert got_ext == ext, f"expected file of extension {ext}, got {got_ext}:\n{fp}"
-
-
-def create_srt_targlang_and_contlang(targlang_lines, contlang_lines, start_times, end_times, session_dir, subtitle_offset_to_add):
-    for lang_code in [targlang_abbrev, contlang_abbrev]:
-        # don't bother with one for contlang-english or targlang-contlang-english, we mostly care about people understanding the target language in either the contact language or English
-        # so of all 8 possibilities: users can do: 0, targ, cont, eng, targ-cont, targ-eng, (X)cont-eng, (X)targ-cont-eng
-
-        with open(os.path.join(session_dir, f"Subtitles{lang_code}_Raw.srt"), "w") as f:
-            # https://en.wikipedia.org/wiki/SubRip#SubRip_text_file_format
-            index_to_write = 1
-            for i in range(len(targlang_lines)):
-                start_time_ms = max(0, start_times[i] + subtitle_offset_to_add)
-                end_time_ms = max(0, end_times[i] + subtitle_offset_to_add)
-                assert start_time_ms < end_time_ms or start_time_ms == end_time_ms == 0
-                if end_time_ms == 0:
-                    # the offset led to this segment being excluded
-                    continue
-                start_time_str = get_srt_time_str(start_time_ms)
-                end_time_str = get_srt_time_str(end_time_ms)
-                if lang_code == targlang_abbrev:
-                    subtitle_str = targlang_lines[i]
-                elif lang_code == contlang_abbrev:
-                    subtitle_str = contlang_lines[i]
-                else:
-                    raise ValueError(f"{lang_code = }")
-                f.write(f"{index_to_write}\n{start_time_str} --> {end_time_str}\n{subtitle_str}\n\n")
-                index_to_write += 1
-        print(f"created srt file for {lang_code}")
-
-
-def create_srt_interleaved(lang_code, session_dir, targlang_subtitles, contlang_subtitles, eng_subtitles, other_lines, srt_fp=None):
-    if srt_fp is None:
-        srt_fp = os.path.join(session_dir, f"Subtitles{lang_code}.srt")
-    with open(srt_fp, "w") as f:
-        for i in range(len(other_lines)):
-            lines_this_group = []
-            if i % 4 == 2:
-                if targlang_abbrev in lang_code:
-                    lines_this_group.append(targlang_subtitles[i])
-                if contlang_abbrev in lang_code:
-                    lines_this_group.append(contlang_subtitles[i])
-                if "Eng" in lang_code:
-                    lines_this_group.append(eng_subtitles[i])
-            else:
-                lines_this_group.append(other_lines[i])
-
-            assert not any(x is None for x in lines_this_group), f"got Nones in {lang_code} with {i=}\n{lines_this_group = }"
-            line = "".join(lines_this_group)
-            f.write(line)
-    print(f"wrote interleaved srt file for {lang_code}: {srt_fp}")
 
 
 def create_sfm_file(targlang_lines, contlang_lines, session_dir):
@@ -301,6 +309,63 @@ def get_subtitles_and_other_lines(lang_code, session_dir, other_lines_already_se
     return subtitles, other_lines
 
 
+def create_flextext_from_texts_and_times(targlang_texts, contlang_texts, start_times, end_times, output_fp, targlang_flex_abbrev, contlang_flex_abbrev):
+    # on Linux, can strip Windows CR line endings with:
+    # tr -d $'\r' < TextExamples/ZOOM0159_Cleaned_Source.wav.flextext > TextExamples/ZOOM0159_Cleaned_Source.wav_Newlines.flextext
+    # FLEx will import it fine either way
+
+    assert len(targlang_texts) == len(contlang_texts) == len(start_times) == len(end_times)
+    n = len(targlang_texts)
+    tree = ET.ElementTree("tree")
+    document = ET.Element("document")
+    interlinear_text = ET.SubElement(document, "interlinear-text")
+    # title_item = ET.SubElement(interlinear_text, "item", type="title", lang="en")
+    # title_item.text = media_fp
+    paragraphs = ET.SubElement(interlinear_text, "paragraphs")
+    for i in range(n):
+        paragraph = ET.SubElement(paragraphs, "paragraph")
+        phrases = ET.SubElement(paragraph, "phrases")
+        # is there ever more than one phrase exported by SayMore?
+        phrase = ET.SubElement(phrases, "phrase", begin_time_offset=str(start_times[i]), end_time_offset=str(end_times[i]))  # ignore media file
+        segnum_item = ET.SubElement(phrase, "item", type="segnum", lang="en")
+        segnum_item.text = str(i + 1)  # counts from 1
+
+        if targlang_texts[i] == "" and contlang_texts[i] == "":
+            # user has not gotten to this line in SayMore yet, it includes both fields as blank in the flextext
+            txt = ""
+            gls = ""
+        elif targlang_texts[i] == "..." and contlang_texts[i] == "":
+            # here SayMore includes only the txt field for some reason
+            txt = "..."
+            gls = None
+        else:
+            txt = targlang_texts[i]
+            gls = contlang_texts[i]
+
+        if txt is not None:
+            txt_item = ET.SubElement(phrase, "item", type="txt", lang=targlang_flex_abbrev)
+            txt_item.text = targlang_texts[i]
+        if gls is not None:
+            gls_item = ET.SubElement(phrase, "item", type="gls", lang=contlang_flex_abbrev)
+            gls_item.text = contlang_texts[i]
+        words = ET.SubElement(phrase, "words")  # nothing put here by SayMore
+
+    languages = ET.SubElement(interlinear_text, "languages")
+    targlang = ET.SubElement(languages, "language", lang=targlang_flex_abbrev)  # no text put here by SayMore
+    contlang = ET.SubElement(languages, "language", lang=contlang_flex_abbrev)  # no text put here by SayMore
+    # ignore media-files element for now
+
+    tree._setroot(document)
+    ET.indent(tree, space="  ", level=0)
+
+    # debug
+    # s = ET.tostring(tree.getroot())
+    # print(s.decode("utf-8"))
+
+    tree.write(output_fp, encoding="utf-8", xml_declaration=True)  # can use short_empty_elements=False to get <x></x> rather than <x />
+    print(f"wrote XML to {output_fp}")
+
+
 def old_crap_1(fnames):
     raise Exception("this is a mess, do not use, need to refactor")
     form = None
@@ -392,7 +457,7 @@ def old_crap_1(fnames):
 
     create_srt_targlang_and_contlang(targlang_lines, contlang_lines, start_times, end_times, session_dir, subtitle_offset_to_add)
 
-    # once raw subtitle files are written, I need to make cleaned versions of targlang and contlang, and also an Eng one where I translate contact language to English, then old_crap_1 the program again and it will make the combined ones for targ-cont and targ-eng
+    # once raw subtitle files are written, I need to make cleaned versions of targlang and contlang, and also an Eng one where I translate contact language to English, then run the program again and it will make the combined ones for targ-cont and targ-eng
     # on YouTube, select subtitle languages that encode which combination users want, and put the key in the description, e.g. Hiri Motu = Horokoi (target language), Tok Pisin = Tok Pisin (contact language), English = English, Tamil = Horokoi + Tok Pisin, Estonian = Horokoi + English
     other_lines = None
     for lang_code in [f"{targlang_abbrev}_Cleaned", f"{contlang_abbrev}_Cleaned", "Eng"]:
@@ -419,7 +484,7 @@ def old_crap_2():
 
     # for aligning the subtitles, pick a segment after you upload the first Horokoi subtitle file and watch the YouTube video with it, find in the subtitle editor where you want it to start (desired_start) vs where it starts in the .srt file (srt_start)
     # do this BEFORE doing the cleaning of target language and contact language files or translating to English, so that their times will be as desired on YouTube
-    # - alternatively, for those files where you've already old_crap_1 VideoAudioAligning.py, use the EAF with the same filename as the video (video fp with .MTS replaced by .eaf)
+    # - alternatively, for those files where you've already run VideoAudioAligning.py, use the EAF with the same filename as the video (video fp with .MTS replaced by .eaf)
 
     use_offset = False
     if use_offset:
@@ -433,16 +498,16 @@ def old_crap_2():
     else:
         subtitle_offset_to_add = 0
 
-    old_crap_1_in_transcriptions_dir = False
-    if old_crap_1_in_transcriptions_dir:
+    run_in_transcriptions_dir = False
+    if run_in_transcriptions_dir:
         session_dir = "Sessions/VD5"
         # session_dirs = [os.path.join("Sessions", x) for x in os.listdir("Sessions") if os.path.isdir(os.path.join("Sessions", x))]
         print(f"{session_dir = }")
         fnames = [x for x in os.listdir(session_dir) if x.endswith(".annotations.eaf") or x.endswith("TranscriptionLabels.txt")]
         old_crap_1(fnames)
 
-    old_crap_1_in_ehd_paradisec_files_renamed_dir = True
-    if old_crap_1_in_ehd_paradisec_files_renamed_dir:
+    run_in_ehd_paradisec_files_renamed_dir = True
+    if run_in_ehd_paradisec_files_renamed_dir:
         parent_dir = "/media/wesley/LaCie/Horokoi/2023_Backup/FilesRenamed/"
         items = os.listdir(parent_dir)
         # find all pairs of MTS and EAF files that have same filename
@@ -459,66 +524,28 @@ def old_crap_2():
                     convert_eaf_to_srt(eaf_fp, session_dir, subtitle_offset_to_add, srt_fp)
 
 
-def create_flextext_from_texts_and_times(targlang_texts, contlang_texts, start_times, end_times, output_fp, targlang_flex_abbrev, contlang_flex_abbrev):
-    # on Linux, can strip Windows CR line endings with:
-    # tr -d $'\r' < TextExamples/ZOOM0159_Cleaned_Source.wav.flextext > TextExamples/ZOOM0159_Cleaned_Source.wav_Newlines.flextext
-    # FLEx will import it fine either way
-
-    assert len(targlang_texts) == len(contlang_texts) == len(start_times) == len(end_times)
-    n = len(targlang_texts)
-    tree = ET.ElementTree("tree")
-    document = ET.Element("document")
-    interlinear_text = ET.SubElement(document, "interlinear-text")
-    # title_item = ET.SubElement(interlinear_text, "item", type="title", lang="en")
-    # title_item.text = media_fp
-    paragraphs = ET.SubElement(interlinear_text, "paragraphs")
-    for i in range(n):
-        paragraph = ET.SubElement(paragraphs, "paragraph")
-        phrases = ET.SubElement(paragraph, "phrases")
-        # is there ever more than one phrase exported by SayMore?
-        phrase = ET.SubElement(phrases, "phrase", begin_time_offset=str(start_times[i]), end_time_offset=str(end_times[i]))  # ignore media file
-        segnum_item = ET.SubElement(phrase, "item", type="segnum", lang="en")
-        segnum_item.text = str(i + 1)  # counts from 1
-
-        if targlang_texts[i] == "" and contlang_texts[i] == "":
-            # user has not gotten to this line in SayMore yet, it includes both fields as blank in the flextext
-            txt = ""
-            gls = ""
-        elif targlang_texts[i] == "..." and contlang_texts[i] == "":
-            # here SayMore includes only the txt field for some reason
-            txt = "..."
-            gls = None
-        else:
-            txt = targlang_texts[i]
-            gls = contlang_texts[i]
-
-        if txt is not None:
-            txt_item = ET.SubElement(phrase, "item", type="txt", lang=targlang_flex_abbrev)
-            txt_item.text = targlang_texts[i]
-        if gls is not None:
-            gls_item = ET.SubElement(phrase, "item", type="gls", lang=contlang_flex_abbrev)
-            gls_item.text = contlang_texts[i]
-        words = ET.SubElement(phrase, "words")  # nothing put here by SayMore
-
-    languages = ET.SubElement(interlinear_text, "languages")
-    targlang = ET.SubElement(languages, "language", lang=targlang_flex_abbrev)  # no text put here by SayMore
-    contlang = ET.SubElement(languages, "language", lang=contlang_flex_abbrev)  # no text put here by SayMore
-    # ignore media-files element for now
-
-    tree._setroot(document)
-    ET.indent(tree, space="  ", level=0)
-
-    # debug
-    # s = ET.tostring(tree.getroot())
-    # print(s.decode("utf-8"))
-
-    tree.write(output_fp, encoding="utf-8", xml_declaration=True)  # can use short_empty_elements=False to get <x></x> rather than <x />
-    print(f"wrote XML to {output_fp}")
-
-
 if __name__ == "__main__":
+    args = parser.parse_args()
+
+    in_fname, in_ext = os.path.splitext(args.in_file)
+    if args.out_file is not None:
+        out_fname, out_ext = os.path.splitext(args.out_file)
+    elif args.sub_langs is not None:
+        # writing to .srt
+        out_fname = None
+        out_ext = ".srt"
+    else:
+        raise Exception("must provide --out-file unless --sub-langs is provided (in which case the out_file has extension .srt)")
+    
+    validate_extension_conversion(in_ext, out_ext)
+    contact_language_is_english = args.contact_language == "English"
+
     if in_ext == ".eaf" and out_ext == ".srt":
-        convert_eaf_to_srt(args.in_file, session_dir, subtitle_offset_to_add, args.out_file)
+        if args.out_file:
+            print("Do not provide --out-file when writing .srt. Use --sub-langs instead and the filenames will be created automatically.")
+            sys.exit()
+        convert_eaf_to_srt(in_file=args.in_file, out_file_prefix=None, langs=args.sub_langs, offset_ms=args.offset, tls=args.target_language_short, cls=args.contact_language_short)
+        # TODO later, can add ability for user to change the out_file_prefix to be something other than the in_file basename
     elif in_ext == ".eaf" and out_ext == ".flextext":
         convert_eaf_to_flextext(args.in_file, args.out_file, args.target_language_flex, args.contact_language_flex, debug=args.debug)
     else:
