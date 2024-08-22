@@ -69,6 +69,7 @@ fnames = [x for x in fnames if len(x) > 0]
 
 tot = 0
 for fname in fnames:
+    # https://stackoverflow.com/a/7833963/7376935
     with contextlib.closing(wave.open(fname,'r')) as f:
         frames = f.getnframes()
         rate = f.getframerate()
