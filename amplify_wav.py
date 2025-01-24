@@ -31,9 +31,8 @@ import math
 import numpy as np
 import matplotlib.pyplot as plt
 
-
-RATE = 44100
-MAX_AMPLITUDE = 32767
+from util.SoundFileStatistics import sliding_rms
+from util.WavFiles import RATE, MAX_AMPLITUDE, get_array_from_file
 
 
 def get_binary_string(n, big_endian=True):
@@ -82,41 +81,6 @@ def binary_to_int(b):
     return n
 
 
-def get_array_from_file(fp, zoom):
-    print(f"opening {fp}")
-    with open(fp, "rb") as f:
-        contents = f.read()
-
-    hx = contents.hex()
-    padding = 65536 if zoom else 22  # Audacity uses a different value for some reason
-
-    samples = len(hx) / 4 - padding
-    assert samples % 1 == 0, f"samples should be an integer, got {samples}"
-    samples = int(samples)
-
-    header_hex = hx[:4*padding]
-
-    b = bytes.fromhex(hx[4*padding:])
-    assert len(b) == 2 * samples, f"{len(b)} != {2 * samples}"
-
-    # for testing
-    # good_sample_range = 1014990, 1015039  # Audacity counts from 0
-
-    arr = []
-    # for i in range(*good_sample_range):
-    for i in range(samples):
-        if i % 1000000 == 0:
-            print(f"getting array from WAV file: {i // 1000000} / {samples / 1000000:.1f} M")
-        x, y = b[2*i : 2*i+2]
-        n = (2**8) * y + x
-        if n >= 2**15:
-            # the first bit of y is 1
-            n = -1 * (2**16 - 1 - n)
-        arr.append(n)
-
-    return np.array(arr) / MAX_AMPLITUDE, header_hex
-
-
 def get_bytes_from_int(n):
     # clip to max amplitude
     if n < 0:
@@ -129,31 +93,6 @@ def get_bytes_from_int(n):
         print(n, x, y)
         raise
     return x, y  # little-endian
-
-
-def rms(arr):
-    return (np.mean(arr**2))**0.5
-
-
-def sliding_rms(arr, window):
-    b = np.zeros(len(arr))
-    # pad it with zeros for the missing frames, need window-1 of them
-    n_in_front = (window - 1) // 2
-    n_in_back = (window - 1) - n_in_front
-
-    a2 = arr**2
-    for i in range(len(arr) - window + 1):
-        if i % 1000000 == 0:
-            print(f"getting sliding rms: {i // 1000000} / {(len(arr) - window + 1) / 1000000:.1f} M")
-        if i == 0:
-            window_sum = sum(a2[:window])
-        else:
-            window_sum -= a2[i - 1]
-            window_sum += a2[i + window - 1]
-        window_mean = window_sum / window
-        window_rms = window_mean ** 0.5
-        b[i + n_in_front] = window_rms
-    return np.array(b)
 
 
 def get_cuttable_intervals_from_cut_arr(cut_arr):
