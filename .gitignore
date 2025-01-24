@@ -1,2 +1,4 @@
-*.swp
-
+**/*.swp
+example_files/
+**/__pycache__/
+**/*.pyc
