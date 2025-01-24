@@ -32,7 +32,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from util.SoundFileStatistics import sliding_rms
-from util.WavFiles import RATE, MAX_AMPLITUDE, get_array_from_file
+from util.WavFiles import RATE, MAX_AMPLITUDE, get_array_from_file_reading_binary_directly
 
 
 def get_binary_string(n, big_endian=True):
@@ -173,7 +173,7 @@ def get_cutting_points(rms_arr, cutting_amplitude):
 
 if __name__ == "__main__":
     window_samples = int(RATE * window_seconds)
-    arr, header_hex = get_array_from_file(fp, zoom)
+    arr, header_hex = get_array_from_file_reading_binary_directly(fp, zoom)
     print("getting sliding rms")
     rms_arr = sliding_rms(arr, window_samples)
     assert len(arr) == len(rms_arr)
