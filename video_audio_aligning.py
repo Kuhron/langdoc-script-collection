@@ -4,9 +4,11 @@
 
 ### PARAMS TO BE SET BY USER ###
 
-parent_dir = "/home/kuhron/langdoc-script-collection/example_files/MAMBU"
-video_fname = "HK1-MAMBU-REC.MTS"
-audio_prefix = "HK1-MAMBU-REC"
+# text_name = "ASER"
+text_name = "MAMBU"
+parent_dir = f"/home/kuhron/langdoc-script-collection/example_files/{text_name}"
+video_fname = f"HK1-{text_name}-REC.MTS"
+audio_prefix = f"HK1-{text_name}-REC"
 
 # Note: ASER was recorded on Zoom H5 with no lapel mic in 2021, MAMBU was recorded on Zoom H6 with lapel mic in 2023
 
