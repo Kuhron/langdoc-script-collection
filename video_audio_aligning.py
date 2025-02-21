@@ -4,9 +4,10 @@
 
 ### PARAMS TO BE SET BY USER ###
 
-# text_name = "ASER"
-text_name = "MAMBU"
-parent_dir = f"/home/kuhron/langdoc-script-collection/example_files/{text_name}"
+text_name = "ASER"
+# text_name = "MAMBU"
+
+parent_dir = f"/home/kuhron/langdoc-script-collection/example_files"
 video_fname = f"HK1-{text_name}-REC.MTS"
 audio_prefix = f"HK1-{text_name}-REC"
 
@@ -17,6 +18,8 @@ audio_prefix = f"HK1-{text_name}-REC"
 
 
 import os
+from pathlib import Path
+import shutil
 import numpy as np
 import matplotlib.pyplot as plt
 import moviepy
@@ -25,6 +28,25 @@ import sys
 
 from util.SoundFileStatistics import sliding_rms
 from util.WavFiles import RATE, MAX_AMPLITUDE, get_array_from_file
+from util.CliUtil import confirm_action
+
+
+def get_temp_dir_path(video_fname):
+    # assume we are dealing with only one video and potentially multiple audios, so we will name the temp dir after the video file
+    return Path.cwd() / f".tmp_{video_fname}"
+
+
+def create_temp_dir(temp_dir_path):
+    print(f"temporary files will be stored in {temp_dir_path}")
+    temp_dir_path.mkdir(exist_ok=True)
+
+
+def delete_temp_dir(temp_dir_path):
+    if confirm_action(f"the temporary files in {temp_dir_path} will be removed"):
+        shutil.rmtree(temp_dir_path)  # be careful to put the right path here!
+        print("temporary files have been removed")
+    else:
+        raise Exception("aborted")
 
 
 def stereo_wav_to_mono(fp):
@@ -45,7 +67,13 @@ def stereo_wav_to_mono(fp):
 
 def create_mono_wavs_from_video_file(video_dir, video_fname, audio_prefix, tracks):
     video_fp = os.path.join(video_dir, video_fname)
-    video_audio_fp = os.path.join(video_dir, "AudioFromVideo.wav")  # TODO put original filename in this filename somewhere
+    video_fname_no_ext, ext = os.path.splitext(os.path.basename(video_fp))
+
+    # video_audio_fp = os.path.join(video_dir, f"{video_fname_no_ext}_AudioFromVideo.wav")
+
+    # I think this is causing the bug
+    video_audio_fp = "AudioFromVideo.wav"
+
     if os.path.exists(video_audio_fp):
         print(f"file exists, skipping; {video_audio_fp}")
     else:
@@ -213,6 +241,15 @@ def create_shifted_eaf_file(existing_eaf_fp, new_eaf_fp, best_offset_samples, al
 
 
 if __name__ == "__main__":
+    temp_dir_path = get_temp_dir_path(video_fname)
+    create_temp_dir(temp_dir_path)
+
+
+    delete_temp_dir(temp_dir_path)
+    sys.exit()
+
+    # old stuff, TODO organize
+
     video_dir = parent_dir
 
     audio_fps_in_dir_raw = [x for x in os.listdir(video_dir) if x.startswith(audio_prefix) and x.endswith(".WAV")]
