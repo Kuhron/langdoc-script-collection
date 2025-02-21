@@ -2,3 +2,14 @@
 example_files/
 **/__pycache__/
 **/*.pyc
+
+# temporary files
+.tmp*
+
+# media files
+**/*.wav
+**/*.WAV
+**/*.TS
+**/*.MTS
+**/*.mp4
+
