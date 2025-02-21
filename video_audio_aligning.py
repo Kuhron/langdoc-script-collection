@@ -20,8 +20,11 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import moviepy
+from moviepy.video.tools.subtitles import SubtitlesClip
 from pydub import AudioSegment
 import sys
+from pathlib import Path
+from numbers import Number
 
 from util.SoundFileStatistics import sliding_rms
 from util.WavFiles import RATE, MAX_AMPLITUDE, get_array_from_file
@@ -62,6 +65,36 @@ def create_mono_wavs_from_video_file(video_dir, video_fname, audio_prefix, track
             audio_fps.append(os.path.join(video_dir, f"{audio_prefix}_{x}.WAV"))
     assert len(audio_fps) == len(tracks) + 1
     return audio_fps
+
+
+def replace_audio_in_video_clip(video_path:Path, audio_path:Path, offset_s:Number) -> moviepy.VideoFileClip:
+    print(f"combining\nvideo: {video_path}\naudio: {audio_path}\n")
+
+    video = moviepy.VideoFileClip(video_path)
+    audio = moviepy.AudioFileClip(audio_path)
+    new_video = video.with_audio(moviepy.CompositeAudioClip([audio.with_start(offset_s)]))
+    return new_video
+
+
+def add_subtitle_to_video_clip(video:moviepy.VideoFileClip, subtitles_path:Path, offset_s:Number) -> moviepy.VideoFileClip:
+    # this adds the subtitles to the actual video, not just text subtitles that can be turned on/off, it will actually be on the video images
+    # TODO at some point, can move the subtitles into a better position and give text black background, but for now I'll just use YouTube .srt functionality
+
+    font_path = Path("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf")
+    generator = lambda txt: moviepy.TextClip(text=txt, font=font_path, font_size=24, color="white")
+    subtitles = SubtitlesClip(subtitles_path, make_textclip=generator)
+    subtitles = subtitles.with_start(offset_s)
+    new_video = moviepy.CompositeVideoClip([video, subtitles])  # without specifying subtitle position, it's just in the upper left corner
+    return new_video
+
+
+def write_video_clip_to_file(video:moviepy.VideoFileClip, video_path:Path) -> None:
+    codec = {
+        ".MTS": "h264",
+    }.get(video_path.suffix)
+
+    video.write_videofile(video_path, codec=codec)
+    print(f"wrote new video to {video_path}")
 
 
 def get_correlation_from_offset(v_arr_rms, a_arr_rms, offset_samples):
@@ -110,9 +143,8 @@ def make_correlation_file(video_dir, v_arr_rms, audio_fname, rms_window_samples)
     a_arr = get_array_from_file(audio_fp)
     a_arr_rms = sliding_rms(a_arr, rms_window_samples)
 
-    print(f"{v_arr_rms.shape}")
-    print(f"{a_arr_rms.shape}")
-    input("check")
+    print(f"{v_arr_rms.shape = }")
+    print(f"{a_arr_rms.shape = }")
 
     # make it so we slide the audio and keep the video in place, since I am making edited .eaf files that will match the video time
     print(f"making correlation")
@@ -159,10 +191,10 @@ def get_max_correlation_position(audio_fnames, video_dir):
         best_offsets.append(best_offset)
         corr_series.append(this_corr_series)
 
-    # debug
-    for corr, corr_fp in zip(corr_series, corr_fps):
-        plt.plot(corr, label=corr_fp)
-    plt.show()
+    # # debug
+    # for corr, corr_fp in zip(corr_series, corr_fps):
+    #     plt.plot(corr, label=corr_fp)
+    # plt.show()
 
     best_offsets = sorted(set(best_offsets))
     print(f"{best_offsets = }")
@@ -224,6 +256,8 @@ if __name__ == "__main__":
     # so we'll end up with two LR-Mono in the list)
     tracks = [x for x in tracks if x != "LR-Mono"]
 
+    video_path = Path(video_dir) / video_fname
+
     video_audio_mono_fp, *audio_fps = create_mono_wavs_from_video_file(video_dir, video_fname, audio_prefix, tracks)
     audio_fnames = [os.path.basename(audio_fp) for audio_fp in audio_fps]
     print(f"{audio_fnames = }")
@@ -243,6 +277,20 @@ if __name__ == "__main__":
 
     best_offset_samples = get_max_correlation_position(audio_fnames, video_dir)
     print(f"{best_offset_samples = }")
+
+    audio_path = Path(video_dir) / audio_fnames[0]
+    subtitles_path = Path("/home/kuhron/Horokoi/Transcriptions") / "Sessions2023/MAMBU/SubtitlesHk_Raw.srt"
+
+    extension_to_write = ".MTS"
+    # extension_to_write = ".mp4"
+    new_video_path = Path("test").with_suffix(extension_to_write)
+    if new_video_path.exists():
+        raise FileExistsError(new_video_path)
+
+    offset_s = 0 # best_offset_samples / RATE
+    new_video = replace_audio_in_video_clip(video_path, audio_path, offset_s)
+    # new_video = add_subtitle_to_video_clip(new_video, subtitles_path, offset_s)
+    write_video_clip_to_file(new_video, new_video_path)
 
     sys.exit()
 
