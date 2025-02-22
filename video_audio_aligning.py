@@ -4,15 +4,6 @@
 
 ### PARAMS TO BE SET BY USER ###
 
-text_name = "ASER"
-# text_name = "MAMBU"
-
-parent_dir = f"/home/kuhron/langdoc-script-collection/example_files"
-video_fname = f"HK1-{text_name}-REC.MTS"
-audio_prefix = f"HK1-{text_name}-REC"
-
-# Note: ASER was recorded on Zoom H5 with no lapel mic in 2021, MAMBU was recorded on Zoom H6 with lapel mic in 2023
-
 
 ### END USER PARAMS ###
 
@@ -26,6 +17,7 @@ import moviepy
 from moviepy.video.tools.subtitles import SubtitlesClip
 from pydub import AudioSegment
 import sys
+import argparse
 from pathlib import Path
 from numbers import Number
 
@@ -141,13 +133,18 @@ def get_correlation_from_offset(v_arr_rms, a_arr_rms, offset_samples):
 
 
 def find_correlations_brute_force(v_arr_rms, a_arr_rms, offsets_samples):
+    print(f"finding correlations between video and audio")
     offsets_samples_used = []
     correlations = []
-    for offset_samples in offsets_samples:
+    for i, offset_samples in enumerate(offsets_samples):
+        print(f"progress: {i+1}/{len(offsets_samples)}", end="\r")
         corr = get_correlation_from_offset(v_arr_rms, a_arr_rms, offset_samples)
-        print(f"{offset_samples = }, {corr = :+.6f}\t\t\r")
+        # if corr >= 0.75:
+        #     print(f"{offset_samples = }, {corr = :+.6f}\t\t\r")
         offsets_samples_used.append(offset_samples)  # redundant but whatever
         correlations.append(corr)
+    print()
+    print(f"done finding correlations between video and audio")
     return correlations, offsets_samples_used
 
 
@@ -271,11 +268,35 @@ def create_shifted_eaf_file(existing_eaf_fp, new_eaf_fp, best_offset_samples, al
         f.write(new_s)
 
 
+def dir_path(path_str:str):
+    path = Path(path_str)
+    if path.is_dir():
+        return path
+    raise argparse.ArgumentTypeError(f"{path} not valid, should be a directory")
+
 
 if __name__ == "__main__":
+    # TODO for user interface:
+    # - expect directory structure in which all texts have their own dir
+    # - and each text dir has one video, one audio, and optionally one .eaf transcript
+    # - then the script will create a new video (with offset audio from the audio file)
+    # - and if the .eaf is present, it will create an offset .eaf and an offset .srt
+    # - pass single text directory path as arg
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("dir_path", type=dir_path)
+    args = parser.parse_args()
+
+    text_name = args.dir_path.stem
+
+    parent_dir = Path("/home/kuhron/langdoc-script-collection/example_files") / args.text_name
+    video_fname = f"{text_name}.MTS"
+    audio_prefix = f"{text_name}.WAV"
+
+    # Note: ASER was recorded on Zoom H5 with no lapel mic in 2021, MAMBU was recorded on Zoom H6 with lapel mic in 2023
+
     temp_dir_path = get_temp_dir_path(video_fname)
     create_temp_dir(temp_dir_path)
-
 
     delete_temp_dir(temp_dir_path)
     sys.exit()
