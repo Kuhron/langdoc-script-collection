@@ -19,9 +19,9 @@ MOVIEPY_AUDIO_CODEC = "pcm_s32le"
 
 
 
-def get_array_from_file(fp):
+def get_array_from_file(fp: Path):
     # TODO why is running sliding_rms on this array so much slower than on the one from get_array_from_file_reading_binary_directly?
-    arr = wavio.read(fp).data
+    arr = wavio.read(str(fp)).data
     m, one = arr.shape
     assert one == 1
     return arr.reshape((m,))

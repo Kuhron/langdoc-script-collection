@@ -23,6 +23,7 @@ from numbers import Number
 from util.SoundFileStatistics import sliding_rms
 import util.WavFiles as wv
 import util.AudioOfVideoFiles as av
+import util.correlation as corr
 from util.VideoAudioAligningOrganization import get_tmp_dir_path, create_tmp_dir, delete_tmp_dir
 
 
@@ -46,126 +47,6 @@ def write_video_clip_to_file(video:moviepy.VideoFileClip, video_path:Path) -> No
 
     video.write_videofile(video_path, codec=codec)
     print(f"wrote new video to {video_path}")
-
-
-def get_correlation_from_offset(v_arr_rms, a_arr_rms, offset_samples):
-    # start audio earlier with negative offset, later with positive offset
-    # so since our zero point is both files starting at the same time and potentially ending at different times, when have negative offset we should chop off the front of the audio, and when we have positive offset we should pad the front of the audio
-    assert type(offset_samples) is int
-    if offset_samples < 0:
-        new_a_arr_rms = a_arr_rms[-offset_samples:]
-    else:
-        new_a_arr_rms = np.concatenate([np.zeros((offset_samples,)), a_arr_rms])
-    min_len = min(v_len, len(new_a_arr_rms))
-    new_v_arr_rms = v_arr_rms[:min_len]
-    new_a_arr_rms = new_a_arr_rms[:min_len]
-    corr = np.corrcoef(new_v_arr_rms, new_a_arr_rms)[0,1]
-    return corr
-
-
-def find_correlations_brute_force(v_arr_rms, a_arr_rms, offsets_samples):
-    print(f"finding correlations between video and audio")
-    offsets_samples_used = []
-    correlations = []
-    for i, offset_samples in enumerate(offsets_samples):
-        print(f"progress: {i+1}/{len(offsets_samples)}", end="\r")
-        corr = get_correlation_from_offset(v_arr_rms, a_arr_rms, offset_samples)
-        # if corr >= 0.75:
-        #     print(f"{offset_samples = }, {corr = :+.6f}\t\t\r")
-        offsets_samples_used.append(offset_samples)  # redundant but whatever
-        correlations.append(corr)
-    print()
-    print(f"done finding correlations between video and audio")
-    return correlations, offsets_samples_used
-
-
-def find_correlations_binary_search(v_arr_rms, a_arr_rms, offsets_samples):
-    # don't care enough, can do it if need to run this a lot more later
-    raise NotImplementedError
-
-
-def make_correlation_file(video_dir, v_arr_rms, audio_fname, rms_window_samples):
-    print(f"making correlation file for {audio_fname = }")
-    audio_fp = os.path.join(video_dir, audio_fname)
-    corr_fp = get_correlation_fp(audio_fname, video_dir)
-    if os.path.exists(corr_fp):
-        print(f"file exists, skipping: {corr_fp}")
-        return
-
-    # find correlation between it and video audio at various offsets
-    offsets_seconds_all = np.arange(-10, 10, 0.1)
-    offsets_samples_all = [int(round(wv.RATE * x)) for x in offsets_seconds_all]
-    correlations = []
-    a_arr = wv.get_array_from_file(audio_fp)
-    a_arr_rms = sliding_rms(a_arr, rms_window_samples)
-
-    print(f"{v_arr_rms.shape = }")
-    print(f"{a_arr_rms.shape = }")
-
-    # make it so we slide the audio and keep the video in place, since I am making edited .eaf files that will match the video time
-    print(f"making correlation")
-    correlations, offsets_samples_used = find_correlations_brute_force(v_arr_rms, a_arr_rms, offsets_samples_all)
-    # correlations, offsets_samples_used = find_correlations_binary_search(v_arr_rms, a_arr_rms, offsets_samples_all)
-
-    offsets_seconds_used = [x/wv.RATE for x in offsets_samples_used]
-    assert len(offsets_samples_used) == len(correlations)
-    # plt.plot(offsets_seconds_used, correlations)
-    # plt.show()
-    with open(corr_fp, "w") as f:
-        for i in range(len(offsets_samples_used)):
-            f.write(f"{offsets_samples_used[i]}\t{correlations[i]}\n")
-    print(f"wrote correlations to {corr_fp}")
-
-
-def get_correlation_fp(audio_fname, video_dir):
-    corr_fname = f"corr_{audio_fname}.txt"
-    corr_fp = os.path.join(video_dir, corr_fname)
-    return corr_fp
-
-
-def get_max_correlation_position(audio_fnames, video_dir):
-    corr_fps = [get_correlation_fp(audio_fname, video_dir) for audio_fname in audio_fnames]
-    discrepancy_tolerance = 0.05 * wv.RATE
-    best_offsets = []
-    corr_series = []
-    for corr_fp in corr_fps:
-        with open(corr_fp) as f:
-            lines = f.readlines()
-        while "" in lines:
-            lines.remove("")
-        lines_stripped_split = [line.strip().split("\t") for line in lines]
-        offsets = []
-        this_corr_series = []
-        for line in lines_stripped_split:
-            offset, corr = line
-            offset = int(offset)
-            corr = float(corr)
-            offsets.append(offset)
-            this_corr_series.append(corr)
-        
-        best_offset = offsets[this_corr_series.index(max(this_corr_series))]  # don't optimize prematurely?
-        best_offsets.append(best_offset)
-        corr_series.append(this_corr_series)
-
-    # # debug
-    # for corr, corr_fp in zip(corr_series, corr_fps):
-    #     plt.plot(corr, label=corr_fp)
-    # plt.show()
-
-    best_offsets = sorted(set(best_offsets))
-    print(f"{best_offsets = }")
-
-    if any(abs(x - min(offsets)) <= discrepancy_tolerance or abs(x - max(offsets)) <= discrepancy_tolerance for x in best_offsets):
-            raise Exception(f"Warning: some offsets are too close to min or max offset; you probably need to expand the window of offsets checked; {best_offsets = }")
-
-    if len(best_offsets) == 1:
-        return best_offsets[0]
-    else:
-        if max(best_offsets) - min(best_offsets) > discrepancy_tolerance:
-            raise Exception(f"Warning: best offsets are too far apart: {best_offsets}")
-        else:
-            average_offset = sum(best_offsets) / len(best_offsets)
-            return int(round(average_offset))
 
 
 def create_shifted_eaf_file(existing_eaf_fp, new_eaf_fp, best_offset_samples, allow_overwrite=False):
@@ -272,7 +153,32 @@ if __name__ == "__main__":
 
     print(f"will correlate these two audio files:\n{audio_fp_to_correlate}\n{video_audio_fp_to_correlate}")
 
-    input("check")
+    corr_fp = corr.get_correlation_fp(tmp_dir_path)
+
+    if corr_fp.exists():
+        print(f"all correlations already computed")
+    else:
+        rms_window_seconds = 0.2
+        rms_window_samples = int(round(rms_window_seconds * wv.RATE))
+
+        v_arr = wv.get_array_from_file(video_audio_fp_to_correlate)
+
+        corr.make_correlation_file(video_audio_fp_to_correlate, audio_fp_to_correlate, rms_window_samples, corr_fp)
+
+    best_offset_samples = corr.get_max_correlation_position(corr_fp)
+    print(f"{best_offset_samples = }")
+
+    extension_to_write = ".MTS"
+    # extension_to_write = ".mp4"
+    new_video_path = text_dir / (video_fp.name + "_aligned" + extension_to_write)
+    if new_video_path.exists():
+        raise FileExistsError(new_video_path)
+
+    offset_s = best_offset_samples / wv.RATE
+    new_video = av.replace_audio_in_video_clip(video_fp, audio_fp, offset_s)
+    # new_video = add_subtitle_to_video_clip(new_video, subtitles_path, offset_s)
+    write_video_clip_to_file(new_video, new_video_path)
+
     # once done with everything, give user option to delete the tmp files or keep them to run script again faster next time
     delete_tmp_dir(tmp_dir_path)
     
@@ -281,39 +187,13 @@ if __name__ == "__main__":
 
     # video_audio_mono_fp, *audio_fps = create_mono_wavs_from_video_file(text_dir, video_fname, audio_prefix, tracks)
     # audio_fnames = [os.path.basename(audio_fp) for audio_fp in audio_fps]
-    # print(f"{audio_fnames = }")
+    # print(f"{audio_fnames = }")    
 
-    if all(os.path.exists(get_correlation_fp(audio_fname, text_dir)) for audio_fname in audio_fnames):
-        print(f"all correlations already computed")
-    else:
-        rms_window_seconds = 0.2
-        rms_window_samples = int(round(rms_window_seconds * RATE))
+    # audio_path = Path(text_dir) / audio_fnames[0]
+    # subtitles_path = Path("/home/kuhron/Horokoi/Transcriptions") / "Sessions2023/MAMBU/SubtitlesHk_Raw.srt"
 
-        v_arr = get_array_from_file(video_audio_mono_fp)
-        v_arr_rms = sliding_rms(v_arr, rms_window_samples)
-        v_len = len(v_arr_rms)
 
-        for audio_fname in audio_fnames:
-            make_correlation_file(video_dir=text_dir, v_arr_rms=v_arr_rms, audio_fname=audio_fname, rms_window_samples=rms_window_samples)
 
-    best_offset_samples = get_max_correlation_position(audio_fnames, text_dir)
-    print(f"{best_offset_samples = }")
-
-    audio_path = Path(text_dir) / audio_fnames[0]
-    subtitles_path = Path("/home/kuhron/Horokoi/Transcriptions") / "Sessions2023/MAMBU/SubtitlesHk_Raw.srt"
-
-    extension_to_write = ".MTS"
-    # extension_to_write = ".mp4"
-    new_video_path = Path("test").with_suffix(extension_to_write)
-    if new_video_path.exists():
-        raise FileExistsError(new_video_path)
-
-    offset_s = 0 # best_offset_samples / RATE
-    new_video = replace_audio_in_video_clip(video_path, audio_path, offset_s)
-    # new_video = add_subtitle_to_video_clip(new_video, subtitles_path, offset_s)
-    write_video_clip_to_file(new_video, new_video_path)
-
-    sys.exit()
 
 
     # Wesley's old crap, TODO clean up / delete
