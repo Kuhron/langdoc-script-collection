@@ -170,7 +170,7 @@ if __name__ == "__main__":
 
     extension_to_write = ".MTS"
     # extension_to_write = ".mp4"
-    new_video_path = text_dir / (video_fp.name + "_aligned" + extension_to_write)
+    new_video_path = text_dir / (video_fp.name + "_Aligned" + extension_to_write)
     if new_video_path.exists():
         raise FileExistsError(new_video_path)
 
@@ -191,9 +191,6 @@ if __name__ == "__main__":
 
     # audio_path = Path(text_dir) / audio_fnames[0]
     # subtitles_path = Path("/home/kuhron/Horokoi/Transcriptions") / "Sessions2023/MAMBU/SubtitlesHk_Raw.srt"
-
-
-
 
 
     # Wesley's old crap, TODO clean up / delete
