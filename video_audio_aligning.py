@@ -9,91 +9,22 @@
 
 
 import os
-from pathlib import Path
+from warnings import warn
 import shutil
 import numpy as np
 import matplotlib.pyplot as plt
 import moviepy
 from moviepy.video.tools.subtitles import SubtitlesClip
-from pydub import AudioSegment
 import sys
 import argparse
 from pathlib import Path
 from numbers import Number
 
 from util.SoundFileStatistics import sliding_rms
-from util.WavFiles import RATE, MAX_AMPLITUDE, get_array_from_file
-from util.CliUtil import confirm_action
+import util.WavFiles as wv
+import util.AudioOfVideoFiles as av
+from util.VideoAudioAligningOrganization import get_tmp_dir_path, create_tmp_dir, delete_tmp_dir
 
-
-def get_temp_dir_path(video_fname):
-    # assume we are dealing with only one video and potentially multiple audios, so we will name the temp dir after the video file
-    return Path.cwd() / f".tmp_{video_fname}"
-
-
-def create_temp_dir(temp_dir_path):
-    print(f"temporary files will be stored in {temp_dir_path}")
-    temp_dir_path.mkdir(exist_ok=True)
-
-
-def delete_temp_dir(temp_dir_path):
-    if confirm_action(f"the temporary files in {temp_dir_path} will be removed"):
-        shutil.rmtree(temp_dir_path)  # be careful to put the right path here!
-        print("temporary files have been removed")
-    else:
-        raise Exception("aborted")
-
-
-def stereo_wav_to_mono(fp):
-    if fp.endswith(".wav"):
-        mono_fp = fp.replace(".wav", "-Mono.wav")
-    elif fp.endswith(".WAV"):
-        mono_fp = fp.replace(".WAV", "-Mono.WAV")
-    else:
-        raise Exception(f"bad filename: {fp}")
-    if os.path.exists(mono_fp):
-        print(f"file exists, skipping; {mono_fp}")
-    else:
-        sound = AudioSegment.from_wav(fp)
-        sound = sound.set_channels(1)
-        sound.export(mono_fp, format="wav")
-    return mono_fp
-
-
-def create_mono_wavs_from_video_file(video_dir, video_fname, audio_prefix, tracks):
-    video_fp = os.path.join(video_dir, video_fname)
-    video_fname_no_ext, ext = os.path.splitext(os.path.basename(video_fp))
-
-    # video_audio_fp = os.path.join(video_dir, f"{video_fname_no_ext}_AudioFromVideo.wav")
-
-    # I think this is causing the bug
-    video_audio_fp = "AudioFromVideo.wav"
-
-    if os.path.exists(video_audio_fp):
-        print(f"file exists, skipping; {video_audio_fp}")
-    else:
-        video = moviepy.VideoFileClip(video_fp)
-        video.audio.write_audiofile(video_audio_fp)
-    video_audio_mono_fp = stereo_wav_to_mono(video_audio_fp)
-    audio_fps = [video_audio_mono_fp]
-    if "LR" in tracks:
-        lr_fp = os.path.join(video_dir, f"{audio_prefix}_LR.WAV")
-        lr_mono_fp = stereo_wav_to_mono(lr_fp)
-        audio_fps.append(lr_mono_fp)
-    for x in tracks:
-        if x not in ["LR", "LR-Mono"]:
-            audio_fps.append(os.path.join(video_dir, f"{audio_prefix}_{x}.WAV"))
-    assert len(audio_fps) == len(tracks) + 1
-    return audio_fps
-
-
-def replace_audio_in_video_clip(video_path:Path, audio_path:Path, offset_s:Number) -> moviepy.VideoFileClip:
-    print(f"combining\nvideo: {video_path}\naudio: {audio_path}\n")
-
-    video = moviepy.VideoFileClip(video_path)
-    audio = moviepy.AudioFileClip(audio_path)
-    new_video = video.with_audio(moviepy.CompositeAudioClip([audio.with_start(offset_s)]))
-    return new_video
 
 
 def add_subtitle_to_video_clip(video:moviepy.VideoFileClip, subtitles_path:Path, offset_s:Number) -> moviepy.VideoFileClip:
@@ -163,9 +94,9 @@ def make_correlation_file(video_dir, v_arr_rms, audio_fname, rms_window_samples)
 
     # find correlation between it and video audio at various offsets
     offsets_seconds_all = np.arange(-10, 10, 0.1)
-    offsets_samples_all = [int(round(RATE * x)) for x in offsets_seconds_all]
+    offsets_samples_all = [int(round(wv.RATE * x)) for x in offsets_seconds_all]
     correlations = []
-    a_arr = get_array_from_file(audio_fp)
+    a_arr = wv.get_array_from_file(audio_fp)
     a_arr_rms = sliding_rms(a_arr, rms_window_samples)
 
     print(f"{v_arr_rms.shape = }")
@@ -176,7 +107,7 @@ def make_correlation_file(video_dir, v_arr_rms, audio_fname, rms_window_samples)
     correlations, offsets_samples_used = find_correlations_brute_force(v_arr_rms, a_arr_rms, offsets_samples_all)
     # correlations, offsets_samples_used = find_correlations_binary_search(v_arr_rms, a_arr_rms, offsets_samples_all)
 
-    offsets_seconds_used = [x/RATE for x in offsets_samples_used]
+    offsets_seconds_used = [x/wv.RATE for x in offsets_samples_used]
     assert len(offsets_samples_used) == len(correlations)
     # plt.plot(offsets_seconds_used, correlations)
     # plt.show()
@@ -194,7 +125,7 @@ def get_correlation_fp(audio_fname, video_dir):
 
 def get_max_correlation_position(audio_fnames, video_dir):
     corr_fps = [get_correlation_fp(audio_fname, video_dir) for audio_fname in audio_fnames]
-    discrepancy_tolerance = 0.05 * RATE
+    discrepancy_tolerance = 0.05 * wv.RATE
     best_offsets = []
     corr_series = []
     for corr_fp in corr_fps:
@@ -269,7 +200,7 @@ def create_shifted_eaf_file(existing_eaf_fp, new_eaf_fp, best_offset_samples, al
 
 
 def dir_path(path_str:str):
-    path = Path(path_str)
+    path = Path(path_str).resolve()  # enforce absolute path
     if path.is_dir():
         return path
     raise argparse.ArgumentTypeError(f"{path} not valid, should be a directory")
@@ -277,7 +208,7 @@ def dir_path(path_str:str):
 
 if __name__ == "__main__":
     # TODO for user interface:
-    # - expect directory structure in which all texts have their own dir
+    # - DONE expect directory structure in which all texts have their own dir
     # - and each text dir has one video, one audio, and optionally one .eaf transcript
     # - then the script will create a new video (with offset audio from the audio file)
     # - and if the .eaf is present, it will create an offset .eaf and an offset .srt
@@ -289,38 +220,70 @@ if __name__ == "__main__":
 
     text_name = args.dir_path.stem
 
-    parent_dir = Path("/home/kuhron/langdoc-script-collection/example_files") / args.text_name
-    video_fname = f"{text_name}.MTS"
-    audio_prefix = f"{text_name}.WAV"
+    text_dir = Path("/home/kuhron/langdoc-script-collection/example_files") / text_name
+    if not text_dir.is_absolute():
+        warn("text dir is not absolute path")
+    audio_ext = ".WAV"
+    video_ext = ".MTS"
 
     # Note: ASER was recorded on Zoom H5 with no lapel mic in 2021, MAMBU was recorded on Zoom H6 with lapel mic in 2023
 
-    temp_dir_path = get_temp_dir_path(video_fname)
-    create_temp_dir(temp_dir_path)
+    tmp_dir_path = get_tmp_dir_path(args.dir_path)
+    create_tmp_dir(tmp_dir_path)
 
-    delete_temp_dir(temp_dir_path)
-    sys.exit()
+    audio_fps = list(text_dir.glob("*"+audio_ext))
+    if len(audio_fps) != 1:
+        raise Exception(f"there should be exactly one audio file ({audio_ext}) in the directory")
+    video_fps = list(text_dir.glob("*"+video_ext))
+    if len(video_fps) != 1:
+        raise Exception(f"there should be exactly one video file ({video_ext}) in the directory")
 
-    # old stuff, TODO organize
+    audio_fp ,= audio_fps
+    video_fp ,= video_fps
 
-    video_dir = parent_dir
+    if not audio_fp.is_absolute():
+        warn("audio fp is not absolute")
+    if not video_fp.is_absolute():
+        warn("video fp is not absolute")
 
-    audio_fps_in_dir_raw = [x for x in os.listdir(video_dir) if x.startswith(audio_prefix) and x.endswith(".WAV")]
-    tracks = [x.replace(audio_prefix+"_", "").replace(".WAV", "") for x in audio_fps_in_dir_raw]
+    # TODO if audio is stereo, make mono tmp file (for computing correlations)
+    # TODO if audio is stereo, use the stereo not mono file for new video
 
-    # extra audio file if we've already run the mono wav creation function, don't double it up in the list 
-    # (since create_mono_wavs will think it's another audio track like TR1/TR2 
-    # and add it to the list of audio files after already adding it by converting the plain LR fname into LR-Mono, 
-    # so we'll end up with two LR-Mono in the list)
-    tracks = [x for x in tracks if x != "LR-Mono"]
+    audio_from_video_fp = av.get_tmp_fp_for_audio_from_video(video_fp)
+    av.write_audio_from_video_to_new_audio_file(video_fp, audio_from_video_fp)
 
-    video_path = Path(video_dir) / video_fname
+    if wv.audio_fp_is_stereo(audio_fp):
+        assert audio_fp.parent == text_dir, audio_fp.parent
+        audio_mono_output_fp = wv.get_tmp_fp_for_mono_audio(audio_fp, maintain_parent=False)
+        assert audio_mono_output_fp.parent == tmp_dir_path, audio_mono_output_fp.parent
+        wv.stereo_wav_to_mono(audio_fp, audio_mono_output_fp)
+        audio_fp_to_correlate = audio_mono_output_fp
+    else:
+        audio_fp_to_correlate = audio_fp
+    
+    if wv.audio_fp_is_stereo(audio_from_video_fp):
+        assert audio_from_video_fp.parent == tmp_dir_path, audio_from_video_fp.parent
+        video_audio_mono_output_fp = wv.get_tmp_fp_for_mono_audio(audio_from_video_fp, maintain_parent=True)
+        assert video_audio_mono_output_fp.parent == tmp_dir_path, video_audio_mono_output_fp.parent
+        wv.stereo_wav_to_mono(audio_from_video_fp, video_audio_mono_output_fp)
+        video_audio_fp_to_correlate = video_audio_mono_output_fp
+    else:
+        video_audio_fp_to_correlate = audio_from_video_fp
 
-    video_audio_mono_fp, *audio_fps = create_mono_wavs_from_video_file(video_dir, video_fname, audio_prefix, tracks)
-    audio_fnames = [os.path.basename(audio_fp) for audio_fp in audio_fps]
-    print(f"{audio_fnames = }")
+    print(f"will correlate these two audio files:\n{audio_fp_to_correlate}\n{video_audio_fp_to_correlate}")
 
-    if all(os.path.exists(get_correlation_fp(audio_fname, video_dir)) for audio_fname in audio_fnames):
+    input("check")
+    # once done with everything, give user option to delete the tmp files or keep them to run script again faster next time
+    delete_tmp_dir(tmp_dir_path)
+    
+
+    # UNSORTED
+
+    # video_audio_mono_fp, *audio_fps = create_mono_wavs_from_video_file(text_dir, video_fname, audio_prefix, tracks)
+    # audio_fnames = [os.path.basename(audio_fp) for audio_fp in audio_fps]
+    # print(f"{audio_fnames = }")
+
+    if all(os.path.exists(get_correlation_fp(audio_fname, text_dir)) for audio_fname in audio_fnames):
         print(f"all correlations already computed")
     else:
         rms_window_seconds = 0.2
@@ -331,12 +294,12 @@ if __name__ == "__main__":
         v_len = len(v_arr_rms)
 
         for audio_fname in audio_fnames:
-            make_correlation_file(video_dir=video_dir, v_arr_rms=v_arr_rms, audio_fname=audio_fname, rms_window_samples=rms_window_samples)
+            make_correlation_file(video_dir=text_dir, v_arr_rms=v_arr_rms, audio_fname=audio_fname, rms_window_samples=rms_window_samples)
 
-    best_offset_samples = get_max_correlation_position(audio_fnames, video_dir)
+    best_offset_samples = get_max_correlation_position(audio_fnames, text_dir)
     print(f"{best_offset_samples = }")
 
-    audio_path = Path(video_dir) / audio_fnames[0]
+    audio_path = Path(text_dir) / audio_fnames[0]
     subtitles_path = Path("/home/kuhron/Horokoi/Transcriptions") / "Sessions2023/MAMBU/SubtitlesHk_Raw.srt"
 
     extension_to_write = ".MTS"

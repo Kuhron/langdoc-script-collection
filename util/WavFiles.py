@@ -1,9 +1,22 @@
+import os
+from pathlib import Path
 import numpy as np
 import wavio
+from pydub import AudioSegment
+
+from util.VideoAudioAligningOrganization import get_tmp_dir_path
 
 
 RATE = 44100
 MAX_AMPLITUDE = 32767
+
+
+PYDUB_FORMAT_TO_WRITE = "wav"
+MOVIEPY_AUDIO_EXTENSION_TO_WRITE = ".WAV"
+
+# Choose ‘pcm_s16le’ for 16-bit wav and ‘pcm_s32le’ for 32-bit wav.
+MOVIEPY_AUDIO_CODEC = "pcm_s32le"
+
 
 
 def get_array_from_file(fp):
@@ -53,3 +66,45 @@ def get_array_from_file_reading_binary_directly(fp, zoom_or_audacity="zoom"):
         arr.append(n)
 
     return np.array(arr) / MAX_AMPLITUDE, header_hex
+
+
+def audio_segment_is_mono(sound: AudioSegment) -> bool:
+    return sound.channels == 1
+
+
+def audio_segment_is_stereo(sound: AudioSegment) -> bool:
+    return sound.channels == 2
+
+
+def audio_fp_is_mono(audio_fp: Path) -> bool:
+    sound = AudioSegment.from_file(audio_fp)
+    return audio_segment_is_mono(sound)
+
+
+def audio_fp_is_stereo(audio_fp: Path) -> bool:
+    sound = AudioSegment.from_file(audio_fp)
+    return audio_segment_is_stereo(sound)
+
+
+def get_tmp_fp_for_mono_audio(audio_fp: Path, maintain_parent:bool=False) -> Path:
+    mono_audio_fname = audio_fp.name + "_Mono" + MOVIEPY_AUDIO_EXTENSION_TO_WRITE
+    mono_audio_fp = audio_fp.parent / mono_audio_fname
+
+    if maintain_parent:
+        pass
+    else:
+        # put it in the tmp dir within the parent
+        parent_dir = audio_fp.parent
+        tmp_dir = get_tmp_dir_path(parent_dir)
+        mono_audio_fp = tmp_dir / mono_audio_fp.name
+
+    return mono_audio_fp
+
+
+def stereo_wav_to_mono(stereo_fp: Path, output_mono_fp: Path) -> None:
+    if os.path.exists(output_mono_fp):
+        print(f"mono file for this audio already exists, skipping; {output_mono_fp}")
+    else:
+        sound = AudioSegment.from_file(stereo_fp)
+        sound = sound.set_channels(1)  # does this mix the channels or just drop one? shouldn't matter for practical purposes of determining correlation, but still good to be aware of
+        sound.export(output_mono_fp, format=PYDUB_FORMAT_TO_WRITE)
