@@ -20,5 +20,4 @@ def delete_tmp_dir(tmp_dir_path):
         shutil.rmtree(tmp_dir_path)  # be careful to put the right path here!
         print("temporary files have been removed")
     else:
-        raise Exception("aborted")
-
+        print("temporary files dir was not removed")
