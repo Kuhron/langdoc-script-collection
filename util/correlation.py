@@ -1,8 +1,8 @@
+import numpy as np
 from pathlib import Path
+from warnings import warn
 
 import util.WavFiles as wv
-import numpy as np
-
 from util.SoundFileStatistics import sliding_rms
 
 
@@ -98,7 +98,10 @@ def get_max_correlation_position(corr_fp):
         offsets.append(offset)
         this_corr_series.append(corr)
     
-    best_offset = offsets[this_corr_series.index(max(this_corr_series))]  # don't optimize prematurely?
+    max_corr = max(this_corr_series)
+    if max_corr < 0.5:
+        warn(f"max correlation is very low ({max_corr:.2f}); are you sure you have the correct video and audio files?")
+    best_offset = offsets[this_corr_series.index(max_corr)]  # don't optimize prematurely?
 
     print(f"{best_offset = }")
 
