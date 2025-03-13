@@ -8,76 +8,17 @@
 ### END USER PARAMS ###
 
 
-import os
 from warnings import warn
-import shutil
-import numpy as np
-import matplotlib.pyplot as plt
-import moviepy
-from moviepy.video.tools.subtitles import SubtitlesClip
-import sys
 import argparse
 from pathlib import Path
-from numbers import Number
 
-from util.SoundFileStatistics import sliding_rms
 import util.WavFiles as wv
 import util.AudioOfVideoFiles as av
-import util.correlation as corr
+import util.Correlation as corr
 from util.VideoAudioAligningOrganization import get_tmp_dir_path, create_tmp_dir, delete_tmp_dir
+from util.VideoEditing import create_new_video_file_with_aligned_audio
+from util.Eaf import create_shifted_eaf_file_from_text_dir
 
-
-
-def add_subtitle_to_video_clip(video:moviepy.VideoFileClip, subtitles_path:Path, offset_s:Number) -> moviepy.VideoFileClip:
-    # this adds the subtitles to the actual video, not just text subtitles that can be turned on/off, it will actually be on the video images
-    # TODO at some point, can move the subtitles into a better position and give text black background, but for now I'll just use YouTube .srt functionality
-
-    font_path = Path("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf")
-    generator = lambda txt: moviepy.TextClip(text=txt, font=font_path, font_size=24, color="white")
-    subtitles = SubtitlesClip(subtitles_path, make_textclip=generator)
-    subtitles = subtitles.with_start(offset_s)
-    new_video = moviepy.CompositeVideoClip([video, subtitles])  # without specifying subtitle position, it's just in the upper left corner
-    return new_video
-
-
-def write_video_clip_to_file(video:moviepy.VideoFileClip, video_path:Path) -> None:
-    codec = {
-        ".MTS": "h264",
-    }.get(video_path.suffix)
-
-    video.write_videofile(video_path, codec=codec)
-    print(f"wrote new video to {video_path}")
-
-
-def create_shifted_eaf_file(existing_eaf_fp, new_eaf_fp, best_offset_samples, allow_overwrite=False):
-    # ADD the offset to the eaf times, since the eaf times were for the audio but we're changing it to the video (always or almost always a negative offset since the video was started later so we want earlier timestamps)
-    # could parse XML but whatever, the format is simple enough to just do string replacement
-    if os.path.exists(new_eaf_fp) and not allow_overwrite:
-        raise Exception(f"would overwrite file {new_eaf_fp}")
-    best_offset_ms = int(round(best_offset_samples * 1000/44100))  # convert time units!
-    with open(existing_eaf_fp) as f:
-        lines = f.readlines()
-    new_lines = []
-    for line_i, l in enumerate(lines):
-        assert l.endswith("\n") or line_i == len(lines) - 1, repr(l)  # just so I know whether to do "".join or "\n".join later
-        if "TIME_VALUE=" in l:
-            i = l.index("TIME_VALUE=") + len("TIME_VALUE_")
-            l1, l2 = l[:i], l[i:]
-            assert l1.endswith("TIME_VALUE=")
-            assert l2[0] == '"'
-            assert l2.count('"') == 2
-            j = 1 + l2[1:].index('"')
-            assert l2[j] == '"'
-            n = int(l2[1:j])
-            new_n = n + best_offset_ms
-            new_n = max(0, new_n)
-            new_l = f'{l1}"{new_n}"' + l2[j+1:]
-        else:
-            new_l = l
-        new_lines.append(new_l)
-    new_s = "".join(new_lines)
-    with open(new_eaf_fp, "w") as f:
-        f.write(new_s)
 
 
 def dir_path(path_str:str):
@@ -96,7 +37,10 @@ if __name__ == "__main__":
     # - pass single text directory path as arg
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("dir_path", type=dir_path)
+    parser.add_argument("dir_path", type=dir_path, help="the path to the directory where the text's video and audio are stored")
+    parser.add_argument("--video", action="store_true", help="create a new video file where the audio is replaced with that from the audio file (and is aligned with the video)")
+    parser.add_argument("--eaf", action="store_true", help="adjust an .eaf transcript to be aligned with the video file")
+    # parser.add_argument("--srt", action="store_true", help="TODO")
     args = parser.parse_args()
 
     text_name = args.dir_path.stem
@@ -104,83 +48,33 @@ if __name__ == "__main__":
     text_dir = Path("/home/kuhron/langdoc-script-collection/example_files") / text_name
     if not text_dir.is_absolute():
         warn("text dir is not absolute path")
-    audio_ext = ".WAV"
-    video_ext = ".MTS"
-
-    # Note: ASER was recorded on Zoom H5 with no lapel mic in 2021, MAMBU was recorded on Zoom H6 with lapel mic in 2023
-
+    
     tmp_dir_path = get_tmp_dir_path(args.dir_path)
     create_tmp_dir(tmp_dir_path)
 
-    audio_fps = list(text_dir.glob("*"+audio_ext))
-    if len(audio_fps) != 1:
-        raise Exception(f"there should be exactly one audio file ({audio_ext}) in the directory")
-    video_fps = list(text_dir.glob("*"+video_ext))
-    if len(video_fps) != 1:
-        raise Exception(f"there should be exactly one video file ({video_ext}) in the directory")
+    audio_ext = ".WAV"
+    video_ext = ".MTS"
+    eaf_ext = ".eaf"
+    subtitle_ext = ".srt"
 
-    audio_fp ,= audio_fps
-    video_fp ,= video_fps
+    action_functions = {
+        "video": lambda: create_new_video_file_with_aligned_audio(text_dir, tmp_dir_path, audio_ext, video_ext),
+        "eaf": lambda: create_shifted_eaf_file_from_text_dir(text_dir),
+        "srt": NotImplemented,
+    }
 
-    if not audio_fp.is_absolute():
-        warn("audio fp is not absolute")
-    if not video_fp.is_absolute():
-        warn("video fp is not absolute")
-
-    # TODO if audio is stereo, make mono tmp file (for computing correlations)
-    # TODO if audio is stereo, use the stereo not mono file for new video
-
-    audio_from_video_fp = av.get_tmp_fp_for_audio_from_video(video_fp)
-    av.write_audio_from_video_to_new_audio_file(video_fp, audio_from_video_fp)
-
-    if wv.audio_fp_is_stereo(audio_fp):
-        assert audio_fp.parent == text_dir, audio_fp.parent
-        audio_mono_output_fp = wv.get_tmp_fp_for_mono_audio(audio_fp, maintain_parent=False)
-        assert audio_mono_output_fp.parent == tmp_dir_path, audio_mono_output_fp.parent
-        wv.stereo_wav_to_mono(audio_fp, audio_mono_output_fp)
-        audio_fp_to_correlate = audio_mono_output_fp
+    if args.video:
+        action_functions["video"]()
+    if args.eaf:
+        action_functions["eaf"]()
     else:
-        audio_fp_to_correlate = audio_fp
+        # do everything
+        for f in action_functions.values():
+            f()
+
+    # Note: ASER was recorded on Zoom H5 with no lapel mic in 2021, MAMBU was recorded on Zoom H6 with lapel mic in 2023
+
     
-    if wv.audio_fp_is_stereo(audio_from_video_fp):
-        assert audio_from_video_fp.parent == tmp_dir_path, audio_from_video_fp.parent
-        video_audio_mono_output_fp = wv.get_tmp_fp_for_mono_audio(audio_from_video_fp, maintain_parent=True)
-        assert video_audio_mono_output_fp.parent == tmp_dir_path, video_audio_mono_output_fp.parent
-        wv.stereo_wav_to_mono(audio_from_video_fp, video_audio_mono_output_fp)
-        video_audio_fp_to_correlate = video_audio_mono_output_fp
-    else:
-        video_audio_fp_to_correlate = audio_from_video_fp
-
-    print(f"will correlate these two audio files:\n{audio_fp_to_correlate}\n{video_audio_fp_to_correlate}")
-
-    corr_fp = corr.get_correlation_fp(tmp_dir_path)
-
-    if corr_fp.exists():
-        print(f"all correlations already computed")
-    else:
-        rms_window_seconds = 0.2
-        rms_window_samples = int(round(rms_window_seconds * wv.RATE))
-
-        v_arr = wv.get_array_from_file(video_audio_fp_to_correlate)
-
-        corr.make_correlation_file(video_audio_fp_to_correlate, audio_fp_to_correlate, rms_window_samples, corr_fp)
-
-    best_offset_samples = corr.get_max_correlation_position(corr_fp)
-    print(f"{best_offset_samples = }")
-
-    extension_to_write = ".MTS"
-    # extension_to_write = ".mp4"
-    new_video_path = text_dir / (video_fp.name + "_Aligned" + extension_to_write)
-    if new_video_path.exists():
-        raise FileExistsError(new_video_path)
-
-    offset_s = best_offset_samples / wv.RATE
-    new_video = av.replace_audio_in_video_clip(video_fp, audio_fp, offset_s)
-    # new_video = add_subtitle_to_video_clip(new_video, subtitles_path, offset_s)
-    write_video_clip_to_file(new_video, new_video_path)
-
-    # once done with everything, give user option to delete the tmp files or keep them to run script again faster next time
-    delete_tmp_dir(tmp_dir_path)
     
 
     # UNSORTED
