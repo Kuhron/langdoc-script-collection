@@ -8,6 +8,9 @@ from util.VideoAudioAligningOrganization import get_tmp_dir_path
 from util.CliUtil import confirm_action
 
 
+EAF_EXT = ".eaf"
+ALIGNED_SUFFIX = "_aligned"
+
 
 def create_shifted_eaf_file_helper(existing_eaf_fp, new_eaf_fp, best_offset_samples, allow_overwrite=False):
     # ADD the offset to the eaf times, since the eaf times were for the audio but we're changing it to the video (always or almost always a negative offset since the video was started later so we want earlier timestamps)
@@ -45,7 +48,11 @@ def create_shifted_eaf_file_from_text_dir(text_dir: Path):
     tmp_dir = get_tmp_dir_path(text_dir)
     corr_fp = cor.get_correlation_fp(tmp_dir)
     best_offset_samples = cor.get_max_correlation_position(corr_fp)
-    create_shifted_eaf_file_helper(text_dir / "MAMBU.eaf", text_dir / "MAMBU_aligned.eaf", best_offset_samples)
+    input_eaf_fp = get_existing_unaligned_eaf_fp_from_text_dir(text_dir)
+    if input_eaf_fp is None:
+        raise Exception("no input .eaf file found!")
+    output_eaf_fp = input_eaf_fp.parent / f"{input_eaf_fp.stem}{ALIGNED_SUFFIX}{EAF_EXT}"
+    create_shifted_eaf_file_helper(input_eaf_fp, output_eaf_fp, best_offset_samples)
 
 
 def write_texts_interleaved(target_lang_texts: List[str], contact_lang_texts: List[str], output_fp: Path):
@@ -136,24 +143,37 @@ def create_interleaved_text_file_from_eaf(text_dir: Path):
     print(f"\nInterleaved text file has been created at {output_fp}.\nPlease edit the text strings as desired, because these will be used to create the subtitle files.")
 
 
-def get_existing_eaf_fp_from_text_dir(text_dir: Path, prompt_if_not_aligned:bool=False):
-    eaf_ext = ".eaf"
-    eaf_fps = list(text_dir.glob("*" + eaf_ext))
-    eaf_aligned_fps = list(text_dir.glob("*_aligned" + eaf_ext))
-
+def get_existing_aligned_eaf_fp_from_text_dir(text_dir: Path):
+    eaf_aligned_fps = list(text_dir.glob("*" + ALIGNED_SUFFIX + EAF_EXT))
     if len(eaf_aligned_fps) == 1:
         eaf_fp ,= eaf_aligned_fps
     elif len(eaf_aligned_fps) > 1:
         raise Exception(f"there should be no more than one aligned .eaf transcript file in the directory")
     else:
-        if prompt_if_not_aligned:
-            confirmed = confirm_action(f"\nWarning: there are no .eafs that are labeled as having been aligned with the video file (the .eaf should end in '_aligned.eaf'). Are you sure you have the right file?")
-            if not confirmed:
-                raise Exception("aborted")
-        if len(eaf_fps) == 1:
+        eaf_fp = None
+    return eaf_fp
+
+
+def get_existing_unaligned_eaf_fp_from_text_dir(text_dir: Path):
+    eaf_fps = list(text_dir.glob("*" + EAF_EXT))
+    eaf_fps = [x for x in eaf_fps if not x.stem.endswith(ALIGNED_SUFFIX)]
+    if len(eaf_fps) == 1:
             eaf_fp ,= eaf_fps
-        else:
-            raise Exception(f"since you have no aligned .eaf transcript, there should be exactly one .eaf transcript file in the directory")
+    else:
+        raise Exception(f"since you have no aligned .eaf transcript, there should be exactly one .eaf transcript file in the directory")
 
     return eaf_fp
 
+
+
+def get_existing_eaf_fp_from_text_dir(text_dir: Path, prompt_if_not_aligned:bool=False):
+    aligned_eaf_fp = get_existing_aligned_eaf_fp_from_text_dir(text_dir)
+    if aligned_eaf_fp is not None:
+        return aligned_eaf_fp
+    else:
+        if prompt_if_not_aligned:
+            confirmed = confirm_action(f"\nWarning: there are no .eafs that are labeled as having been aligned with the video file (the .eaf should end in '{ALIGNED_SUFFIX}{EAF_EXT}'). Are you sure you have the right file?")
+            if not confirmed:
+                raise Exception("aborted")
+        eaf_fp = get_existing_unaligned_eaf_fp_from_text_dir(text_dir)
+        return eaf_fp

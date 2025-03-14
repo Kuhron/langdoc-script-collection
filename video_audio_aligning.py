@@ -72,6 +72,10 @@ if __name__ == "__main__":
         "srt": lambda: create_srt_file_for_languages(text_dir, args.langs),
     }
 
+    # there might be a cleaner way to create co-occurrence restrictions on the args, but do it simply until-and-if it gets more complex
+    if args.langs is not None and args.action != "srt":
+        raise Exception("should only pass --langs flag with --action=srt")
+
     if args.action is None:
         # do everything
         for f in action_functions.values():
@@ -86,12 +90,12 @@ if __name__ == "__main__":
 
     # Notes about .eaf and .srt stuff
     # - to make subtitle file, get timestamps from aligned eaf (check if filename has "_aligned" and warn/prompt if not)
-    # - - and get text from either .eaf or InterleavedText.txt (user can pass a flag, or we can prompt)
-    # - if contact language is not English, user will have to write their own English translations (if they want them) somewhere (where? another line in InterleavedText.txt?)
+    # - - and get text from either .eaf or InterleavedText.txt (TODO user can pass a flag, or we can prompt)
+    # - if contact language is not English, user will have to write their own English translations (if they want them) in another line in InterleavedText.txt
     # - InterleavedText.txt can be the main UI for cleaning text in the transcription/translation and for adding other translation languages
     # - - label the lgs with "Langname: ", build dict for each line of what text it has for what language label
-    # - - to make subtitle file, user passes list of languages they want in it, warn/prompt if it's more than 3 but let them do it if they want
-    # - user can choose whether to put language name label on the subtitles or not
+    # - - to make subtitle file, user passes list of languages they want in it, TODO warn/prompt if it's more than 3 but let them do it if they want
+    # - TODO user can choose whether to put language name label on the subtitles or not
 
 
 
