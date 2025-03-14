@@ -17,7 +17,8 @@ import util.AudioOfVideoFiles as av
 import util.Correlation as corr
 from util.VideoAudioAligningOrganization import get_tmp_dir_path, create_tmp_dir, delete_tmp_dir
 from util.VideoEditing import create_new_video_file_with_aligned_audio
-from util.Eaf import create_shifted_eaf_file_from_text_dir
+from util.Eaf import create_shifted_eaf_file_from_text_dir, create_interleaved_text_file_from_eaf
+from util.Subtitles import create_srt_file_for_languages
 
 
 
@@ -26,6 +27,9 @@ def dir_path(path_str:str):
     if path.is_dir():
         return path
     raise argparse.ArgumentTypeError(f"{path} not valid, should be a directory")
+
+def language_list(s: str):
+    return s.split(',')
 
 
 if __name__ == "__main__":
@@ -38,12 +42,16 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("dir_path", type=dir_path, help="the path to the directory where the text's video and audio are stored")
-    parser.add_argument("--video", action="store_true", help="create a new video file where the audio is replaced with that from the audio file (and is aligned with the video)")
-    parser.add_argument("--eaf", action="store_true", help="adjust an .eaf transcript to be aligned with the video file")
+    parser.add_argument("--action", type=str, help="the action to take (TODO figure out how to document this well in docs and/or help str)")
+    parser.add_argument("--langs", type=language_list, help="comma-separated list of language codes from InterleavedText.txt.")
+    # parser.add_argument("--video", action="store_true", help="create a new video file where the audio is replaced with that from the audio file (and is aligned with the video)")
+    # parser.add_argument("--eaf", action="store_true", help="adjust an .eaf transcript to be aligned with the video file")
     # parser.add_argument("--srt", action="store_true", help="TODO")
+    # parser.add_argument("--all", action="store_true", help="perform all conversions")
     args = parser.parse_args()
 
     text_name = args.dir_path.stem
+    action = args.action
 
     text_dir = Path("/home/kuhron/langdoc-script-collection/example_files") / text_name
     if not text_dir.is_absolute():
@@ -60,17 +68,32 @@ if __name__ == "__main__":
     action_functions = {
         "video": lambda: create_new_video_file_with_aligned_audio(text_dir, tmp_dir_path, audio_ext, video_ext),
         "eaf": lambda: create_shifted_eaf_file_from_text_dir(text_dir),
-        "srt": NotImplemented,
+        "txt": lambda: create_interleaved_text_file_from_eaf(text_dir),
+        "srt": lambda: create_srt_file_for_languages(text_dir, args.langs),
     }
 
-    if args.video:
-        action_functions["video"]()
-    if args.eaf:
-        action_functions["eaf"]()
-    else:
+    if args.action is None:
         # do everything
         for f in action_functions.values():
             f()
+    else:
+        try:
+            f = action_functions[args.action]
+        except KeyError:
+            raise Exception(f"unknown action {args.action!r}")
+        f()
+
+
+    # Notes about .eaf and .srt stuff
+    # - to make subtitle file, get timestamps from aligned eaf (check if filename has "_aligned" and warn/prompt if not)
+    # - - and get text from either .eaf or InterleavedText.txt (user can pass a flag, or we can prompt)
+    # - if contact language is not English, user will have to write their own English translations (if they want them) somewhere (where? another line in InterleavedText.txt?)
+    # - InterleavedText.txt can be the main UI for cleaning text in the transcription/translation and for adding other translation languages
+    # - - label the lgs with "Langname: ", build dict for each line of what text it has for what language label
+    # - - to make subtitle file, user passes list of languages they want in it, warn/prompt if it's more than 3 but let them do it if they want
+    # - user can choose whether to put language name label on the subtitles or not
+
+
 
     # Note: ASER was recorded on Zoom H5 with no lapel mic in 2021, MAMBU was recorded on Zoom H6 with lapel mic in 2023
 
