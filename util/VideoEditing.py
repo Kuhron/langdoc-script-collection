@@ -36,10 +36,18 @@ def write_video_clip_to_file(video:moviepy.VideoFileClip, video_path:Path) -> No
 def create_new_video_file_with_aligned_audio(text_dir: Path, tmp_dir_path: Path, audio_ext: str, video_ext: str):
     audio_fps = list(text_dir.glob("*" + audio_ext))
     if len(audio_fps) != 1:
-        raise Exception(f"there should be exactly one audio file ({audio_ext}) in the directory")
+        zero = len(audio_fps) == 0
+        error_str = f"there should be exactly one audio file ({audio_ext}) in the directory, but found " + ("none" if zero else f"the following {len(audio_fps)}:")
+        for fp in audio_fps:
+            error_str += str(fp) + "\n"
+        raise Exception(error_str)
     video_fps = list(text_dir.glob("*" + video_ext))
     if len(video_fps) != 1:
-        raise Exception(f"there should be exactly one video file ({video_ext}) in the directory")
+        zero = len(video_fps) == 0
+        error_str = f"there should be exactly one video file ({video_ext}) in the directory, but found " + ("none" if zero else f"the following {len(video_fps)}:")
+        for fp in video_fps:
+            error_str += str(fp) + "\n"
+        raise Exception(error_str)
 
     audio_fp ,= audio_fps
     video_fp ,= video_fps

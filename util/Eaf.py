@@ -61,7 +61,7 @@ def write_texts_interleaved(target_lang_texts: List[str], contact_lang_texts: Li
         for i in range(len(target_lang_texts)):
             ts = target_lang_texts[i]
             cs = contact_lang_texts[i]
-            f.write(f"{i+1}.\nTranscription: {ts}\nTranslation: {cs}\n----\n")
+            f.write(f"{i+1}.\nTranscriptionRaw: {ts}\nTranscriptionCleaned: {ts}\nTranslationRaw: {cs}\nTranslationCleaned: {cs}\n----\n")
 
 
 def get_texts_and_times_from_eaf(fp: Path):

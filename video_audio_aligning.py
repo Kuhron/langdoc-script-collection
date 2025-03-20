@@ -53,7 +53,7 @@ if __name__ == "__main__":
     text_name = args.dir_path.stem
     action = args.action
 
-    text_dir = Path("/home/kuhron/langdoc-script-collection/example_files") / text_name
+    text_dir = args.dir_path
     if not text_dir.is_absolute():
         warn("text dir is not absolute path")
     
@@ -71,6 +71,11 @@ if __name__ == "__main__":
         "txt": lambda: create_interleaved_text_file_from_eaf(text_dir),
         "srt": lambda: create_srt_file_for_languages(text_dir, args.langs),
     }
+
+    # TODO list actions for user
+    # TODO write up instructions for non-techy users (how to install git, clone the repo, python, install the requirements, note that newer pythons will need audioop-lts package because audioop was deprecated in 3.13)
+    # TODO write up troubleshooting as part of the guide (e.g. Emma's computer ran into the audioop deprecation issue, folders on people's OneDrives are not recognized as directories by pathlib), paste error messages so they can Ctrl-F their problem and find the solution as easily as possible
+    
 
     # there might be a cleaner way to create co-occurrence restrictions on the args, but do it simply until-and-if it gets more complex
     if args.langs is not None and args.action != "srt":
