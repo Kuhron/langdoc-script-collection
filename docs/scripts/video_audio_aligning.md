@@ -48,14 +48,24 @@ For the script to run properly, the files related to a single text need to be in
 
 For the following shell commands, the directory path where this text's files are stored will be referred to as `TEXT_DIR`.
 
+Minor note: The script will create a temporary directory called `.tmp`, where the correlation statistics and temporary media files (such as the audio that was stripped off of the video file) are stored. This can be removed once you are done using the script, and the script can re-compute it anytime as needed.
+
+### Viewing help
+
 ```shell
 # view help
 python video_audio_aligning.py -h
 python video_audio_aligning.py --help
+```
 
+### Action: creating video with audio replaced and aligned to video timing
+
+```shell
 # find correlations between audio from video file and that from .WAV file, and create new video with audio replaced and aligned
 python video_audio_aligning.py TEXT_DIR --action=video
 ```
+
+### Action: creating .eaf transcript that is aligned with video timing
 
 If you want to make subtitles and/or adjust the timestamps on an .eaf transcript, you will also need a single .eaf file in the directory.
 
@@ -63,31 +73,100 @@ If you want to make subtitles and/or adjust the timestamps on an .eaf transcript
 python video_audio_aligning.py TEXT_DIR --action=eaf
 ```
 
+### Action: creating interleaved text file
+
 For making subtitles for the video, you will need an aligned .eaf transcript (made using `--action=eaf` described above), then you will need to create `InterleavedText.txt` using `--action=txt`.
 
 ```shell
 python video_audio_aligning.py TEXT_DIR --action=txt
 ```
 
-Now that `InterleavedText.txt` has been created, open it in a text editor and TODO
+Now that `InterleavedText.txt` has been created, open it in a text editor in order to clean up the transcription (text in the target language) and translation (text in the contact language) for subtitles. You can also add new languages if you want to translate the text into them.
+
+`InterleavedText.txt` is organized into sections that are numbered and separated by `----`. Each of these is one segment of the .eaf transcript. Each of them has multiple labeled rows, for different translations. A partial example output from running the script with `--action=txt` is below:
 
 ```shell
-# expects lines labeled "Hk:" and "Eng:" in InterleavedText.txt
+----
+21.
+TranscriptionRaw: Marepo tf Singepe ekera komu yaka para ekhamu yoma kere
+TranscriptionCleaned: Marepo tf Singepe ekera komu yaka para ekhamu yoma kere
+TranslationRaw: Marepo kam daun long kisim Singepe
+TranslationCleaned: Marepo kam daun long kisim Singepe
+----
+22.
+TranscriptionRaw: hita tf weipu wemakipu nge ngu Marepo imisi yomakine hita wepuna
+TranscriptionCleaned: hita tf weipu wemakipu nge ngu Marepo imisi yomakine hita wepuna
+TranslationRaw: mila go yet long namel rot na Marepo kam bungim mipla
+TranslationCleaned: mila go yet long namel rot na Marepo kam bungim mipla
+----
+23.
+TranscriptionRaw: harawohe
+TranscriptionCleaned: harawohe
+TranslationRaw:  bung na
+TranslationCleaned:  bung na
+----
+```
+
+The transcription language here is Hurukui, which I like to abbreviate as "Hk", and the transcription language is Tok Pisin (TP). So I go through `InterleavedText.txt` and manually edit the `TranscriptionCleaned` and `TranslationCleaned` rows (replacing these labels with "Hk" and "TP" when I'm done cleaning them), and I add an `Eng` row where I manually type an English translation. The result looks like this:
+
+```shell
+----
+21.
+TranscriptionRaw: Marepo tf Singepe ekera komu yaka para ekhamu yoma kere
+Hk: Marepo, Singepe ékera komu yaka para ekhamu yomakere
+TranslationRaw: Marepo kam daun long kisim Singepe
+TP: Marepo kam daun long kisim Singepe
+Eng: Marepo came down to get Singepe
+----
+22.
+TranscriptionRaw: hita tf weipu wemakipu nge ngu Marepo imisi yomakine hita wepuna
+Hk: hita wepu wemakepu nge ngu, Marepo imisi yomakine hita wepuna
+TranslationRaw: mila go yet long namel rot na Marepo kam bungim mipela
+TP: mipela go yet long namel rot na Marepo kam bungim mipla
+Eng: we were still en route when we ran into Marepo
+----
+23.
+TranscriptionRaw: harawohe
+Hk: harawohe
+TranslationRaw:  bung na
+TP:  bung na
+Eng: we met, and
+----
+```
+
+Now it is ready for running the script with `--action=srt` to create subtitle files based on the cleaned-up and newly translated line texts.
+
+### Action: creating subtitle files
+
+You can create a subtitle file for a single language or multiple languages to be shown at once. I like to have the following:
+
+- one for Hurukui only (labeled as Hiri Motu on YouTube)
+- one for Tok Pisin only (labeled as Tok Pisin on YouTube)
+- one for English only (labeled as English on YouTube)
+- one for Hurukui plus Tok Pisin (labeled as Tamil on YouTube)
+- one for Hurukui plus English (labeled as Estonian on YouTube)
+
+The `.srt` subtitle format used by YouTube does not have any metadata about what language the file is in, it just has text and times. So when you upload it you have to tell YouTube what language it should be labeled as.
+
+To create the files, run commands like these:
+
+For one language:
+```shell
+# expects rows labeled "Hk:" in InterleavedText.txt
+python video_audio_aligning.py TEXT_DIR --action=srt --langs=Hk
+```
+
+This creates a new subtitle file called `Subtitles_Hk.srt`.
+
+For multiple languages:
+```shell
+# expects rows labeled "Hk:" and "Eng:" in InterleavedText.txt
 python video_audio_aligning.py TEXT_DIR --action=srt --langs=Hk,Eng
 ```
 
-```shell
-# generic usage pattern
-python video_audio_aligning.py [-h] [--action ACTION] [--langs LANGS] dir_path
-```
-
-The script will create a temporary directory called `.tmp`, where the correlation statistics and temporary media files (such as the audio that was stripped off of the video file) are stored. This can be removed once you are done using the script, and the script can re-compute it anytime as needed.
-
+This creates a new subtitle file called `Subtitles_Hk_Eng.srt`.
 
 ## Troubleshooting
-
-- TODO write up instructions for non-techy users (how to install git, clone the repo, python, install the requirements, note that newer pythons will need audioop-lts package because audioop was deprecated in 3.13)
-- TODO paste error messages so they can Ctrl-F their problem and find the solution as easily as possible
 
 If pip installation fails, use the appropriate command below to install each dependency one at a time:
 
@@ -101,15 +180,14 @@ FOR /F %k in (requirements.txt) DO pip install %k  # on Windows cmd
 If none of these work, see [here](https://stackoverflow.com/questions/22250483/stop-pip-from-failing-on-single-package-when-installing-with-requirements-txt) for more possible commands to run.
 
 The following warning can be ignored:
-.\langdoc-script-collection\video-audio-aligning\lib\site-packages\pydub\utils.py:170: RuntimeWarning: Couldn't find ffmpeg or avconv - defaulting to ffmpeg, but may not work
-  warn("Couldn't find ffmpeg or avconv - defaulting to ffmpeg, but may not work", RuntimeWarning)
+`RuntimeWarning: Couldn't find ffmpeg or avconv - defaulting to ffmpeg, but may not work`
 
 If Python complains that you cannot install the `audioop` package because it is deprecated, use pip to install the long-term support version:
 ```shell
 python -m pip install audioop-lts
 ```
 
-If the script complains that your directory where you stored the files (`TEXT_DIR`) is not a directory and you are on Windows, it might be because that directory is a OneDrive link. If that is the case, then you're hosed because IDFK how to fix it :P **TODO fix**
+If the script complains that your directory where you stored the files (`TEXT_DIR`) is not a directory and you are on Windows, it might be because that directory is a OneDrive link. Try copying the files into a directory that is stored locally on your computer or on an external hard drive, and not a OneDrive link.
 
 
 ## Source

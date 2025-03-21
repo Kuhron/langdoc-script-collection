@@ -1,11 +1,23 @@
-# Copyright (c) 2023 Wesley Kuhron Jones <wesleykuhronjones@gmail.com>
-# Licensed under the MIT License, see below
+# Copyright (c) 2023 Wesley Kuhron Jones <wesleykuhronjones@gmail.com> and Ethan Ferrer-Perry
+# Licensed under the MIT License:
 
-
-### PARAMS TO BE SET BY USER ###
-
-
-### END USER PARAMS ###
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 
 
 from warnings import warn
@@ -90,14 +102,6 @@ if __name__ == "__main__":
         raise Exception(f"unknown action {args.action!r}")
     f()
 
-    # Notes about .eaf and .srt stuff
-    # - to make subtitle file, get timestamps from aligned eaf (check if filename has "_aligned" and warn/prompt if not)
-    # - - and get text from either .eaf or InterleavedText.txt (TODO user can pass a flag, or we can prompt)
-    # - if contact language is not English, user will have to write their own English translations (if they want them) in another line in InterleavedText.txt
-    # - InterleavedText.txt can be the main UI for cleaning text in the transcription/translation and for adding other translation languages
-    # - - label the lgs with "Langname: ", build dict for each line of what text it has for what language label
-    # - - to make subtitle file, user passes list of languages they want in it, TODO warn/prompt if it's more than 3 but let them do it if they want
-    # - TODO user can choose whether to put language name label on the subtitles or not
 
     # Note: ASER was recorded on Zoom H5 with no lapel mic in 2021, MAMBU was recorded on Zoom H6 with lapel mic in 2023
 
