@@ -21,12 +21,13 @@ from util.Eaf import create_shifted_eaf_file_from_text_dir, create_interleaved_t
 from util.Subtitles import create_srt_file_for_languages
 
 
-
-def dir_path(path_str:str):
+def dir_path(path_str: str):
     path = Path(path_str).resolve()  # enforce absolute path
     if path.is_dir():
         return path
-    raise argparse.ArgumentTypeError(f"{path} not valid, should be a directory")
+    raise argparse.ArgumentTypeError(
+        f"{path} not valid, should be a directory")
+
 
 def language_list(s: str):
     return s.split(',')
@@ -41,9 +42,12 @@ if __name__ == "__main__":
     # - pass single text directory path as arg
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("dir_path", type=dir_path, help="the path to the directory where the text's video and audio are stored")
-    parser.add_argument("--action", type=str, help="the action to take (TODO figure out how to document this well in docs and/or help str)")
-    parser.add_argument("--langs", type=language_list, help="comma-separated list of language codes from InterleavedText.txt.")
+    parser.add_argument("dir_path", type=dir_path,
+                        help="the path to the directory where the text's video and audio are stored")
+    parser.add_argument(
+        "--action", type=str, help="the action to take (TODO figure out how to document this well in docs and/or help str)")
+    parser.add_argument("--langs", type=language_list,
+                        help="comma-separated list of language codes from InterleavedText.txt.")
     # parser.add_argument("--video", action="store_true", help="create a new video file where the audio is replaced with that from the audio file (and is aligned with the video)")
     # parser.add_argument("--eaf", action="store_true", help="adjust an .eaf transcript to be aligned with the video file")
     # parser.add_argument("--srt", action="store_true", help="TODO")
@@ -56,7 +60,7 @@ if __name__ == "__main__":
     text_dir = args.dir_path
     if not text_dir.is_absolute():
         warn("text dir is not absolute path")
-    
+
     tmp_dir_path = get_tmp_dir_path(args.dir_path)
     create_tmp_dir(tmp_dir_path)
 
@@ -77,16 +81,13 @@ if __name__ == "__main__":
         raise Exception("should only pass --langs flag with --action=srt")
 
     if args.action is None:
-        # do everything
-        for f in action_functions.values():
-            f()
-    else:
-        try:
-            f = action_functions[args.action]
-        except KeyError:
-            raise Exception(f"unknown action {args.action!r}")
-        f()
+        raise Exception("expected --action flag")
 
+    try:
+        f = action_functions[args.action]
+    except KeyError:
+        raise Exception(f"unknown action {args.action!r}")
+    f()
 
     # Notes about .eaf and .srt stuff
     # - to make subtitle file, get timestamps from aligned eaf (check if filename has "_aligned" and warn/prompt if not)
@@ -97,22 +98,16 @@ if __name__ == "__main__":
     # - - to make subtitle file, user passes list of languages they want in it, TODO warn/prompt if it's more than 3 but let them do it if they want
     # - TODO user can choose whether to put language name label on the subtitles or not
 
-
-
     # Note: ASER was recorded on Zoom H5 with no lapel mic in 2021, MAMBU was recorded on Zoom H6 with lapel mic in 2023
-
-    
-    
 
     # UNSORTED
 
     # video_audio_mono_fp, *audio_fps = create_mono_wavs_from_video_file(text_dir, video_fname, audio_prefix, tracks)
     # audio_fnames = [os.path.basename(audio_fp) for audio_fp in audio_fps]
-    # print(f"{audio_fnames = }")    
+    # print(f"{audio_fnames = }")
 
     # audio_path = Path(text_dir) / audio_fnames[0]
     # subtitles_path = Path("/home/kuhron/Horokoi/Transcriptions") / "Sessions2023/MAMBU/SubtitlesHk_Raw.srt"
-
 
     # Wesley's old crap, TODO clean up / delete
 

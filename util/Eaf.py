@@ -17,12 +17,14 @@ def create_shifted_eaf_file_helper(existing_eaf_fp, new_eaf_fp, best_offset_samp
     # could parse XML but whatever, the format is simple enough to just do string replacement
     if os.path.exists(new_eaf_fp) and not allow_overwrite:
         raise Exception(f"would overwrite file {new_eaf_fp}")
-    best_offset_ms = int(round(best_offset_samples * 1000/44100))  # convert time units!
-    with open(existing_eaf_fp) as f:
+    # convert time units!
+    best_offset_ms = int(round(best_offset_samples * 1000/44100))
+    with open(existing_eaf_fp, encoding="utf-8") as f:
         lines = f.readlines()
     new_lines = []
     for line_i, l in enumerate(lines):
-        assert l.endswith("\n") or line_i == len(lines) - 1, repr(l)  # just so I know whether to do "".join or "\n".join later
+        # just so I know whether to do "".join or "\n".join later
+        assert l.endswith("\n") or line_i == len(lines) - 1, repr(l)
         if "TIME_VALUE=" in l:
             i = l.index("TIME_VALUE=") + len("TIME_VALUE_")
             l1, l2 = l[:i], l[i:]
@@ -39,9 +41,10 @@ def create_shifted_eaf_file_helper(existing_eaf_fp, new_eaf_fp, best_offset_samp
             new_l = l
         new_lines.append(new_l)
     new_s = "".join(new_lines)
-    with open(new_eaf_fp, "w") as f:
+    with open(new_eaf_fp, "w", encoding="utf-8") as f:
         f.write(new_s)
-    print(f"created new .eaf transcript file with new timestamps: {new_eaf_fp}")
+    print(
+        f"created new .eaf transcript file with new timestamps: {new_eaf_fp}")
 
 
 def create_shifted_eaf_file_from_text_dir(text_dir: Path):
@@ -51,17 +54,20 @@ def create_shifted_eaf_file_from_text_dir(text_dir: Path):
     input_eaf_fp = get_existing_unaligned_eaf_fp_from_text_dir(text_dir)
     if input_eaf_fp is None:
         raise Exception("no input .eaf file found!")
-    output_eaf_fp = input_eaf_fp.parent / f"{input_eaf_fp.stem}{ALIGNED_SUFFIX}{EAF_EXT}"
-    create_shifted_eaf_file_helper(input_eaf_fp, output_eaf_fp, best_offset_samples)
+    output_eaf_fp = input_eaf_fp.parent / \
+        f"{input_eaf_fp.stem}{ALIGNED_SUFFIX}{EAF_EXT}"
+    create_shifted_eaf_file_helper(
+        input_eaf_fp, output_eaf_fp, best_offset_samples)
 
 
 def write_texts_interleaved(target_lang_texts: List[str], contact_lang_texts: List[str], output_fp: Path):
     assert len(target_lang_texts) == len(contact_lang_texts)
-    with open(output_fp, "w") as f:
+    with open(output_fp, "w", encoding="utf-8") as f:
         for i in range(len(target_lang_texts)):
             ts = target_lang_texts[i]
             cs = contact_lang_texts[i]
-            f.write(f"{i+1}.\nTranscriptionRaw: {ts}\nTranscriptionCleaned: {ts}\nTranslationRaw: {cs}\nTranslationCleaned: {cs}\n----\n")
+            f.write(
+                f"{i+1}.\nTranscriptionRaw: {ts}\nTranscriptionCleaned: {ts}\nTranslationRaw: {cs}\nTranslationCleaned: {cs}\n----\n")
 
 
 def get_texts_and_times_from_eaf(fp: Path):
@@ -77,11 +83,14 @@ def get_texts_and_times_from_eaf(fp: Path):
     # target language is the TIER with LINGUISTIC_TYPE_REF="Transcription"
     # contact language is the TIER with LINGUISTIC_TYPE_REF="Translation"
     tier_els = root.findall("TIER")
-    targlang_tier_el, = [el for el in tier_els if el.attrib["LINGUISTIC_TYPE_REF"] == "Transcription"]
-    contlang_tier_el, = [el for el in tier_els if el.attrib["LINGUISTIC_TYPE_REF"] == "Translation"]
+    targlang_tier_el, = [
+        el for el in tier_els if el.attrib["LINGUISTIC_TYPE_REF"] == "Transcription"]
+    contlang_tier_el, = [
+        el for el in tier_els if el.attrib["LINGUISTIC_TYPE_REF"] == "Translation"]
     time_order_el, = root.findall("TIME_ORDER")
     time_slot_els = time_order_el.findall("TIME_SLOT")
-    time_ms_by_id = {el.attrib["TIME_SLOT_ID"] : int(el.attrib["TIME_VALUE"]) for el in time_slot_els}
+    time_ms_by_id = {el.attrib["TIME_SLOT_ID"]: int(
+        el.attrib["TIME_VALUE"]) for el in time_slot_els}
 
     annotation_id_order = []
     targlang_by_annotation_id = {}
@@ -137,18 +146,21 @@ def get_texts_and_times_from_eaf(fp: Path):
 
 def create_interleaved_text_file_from_eaf(text_dir: Path):
     eaf_fp = get_existing_eaf_fp_from_text_dir(text_dir)
-    target_lang_texts, contact_lang_texts, start_times, end_times = get_texts_and_times_from_eaf(eaf_fp)
+    target_lang_texts, contact_lang_texts, start_times, end_times = get_texts_and_times_from_eaf(
+        eaf_fp)
     output_fp = text_dir / "InterleavedText.txt"
     write_texts_interleaved(target_lang_texts, contact_lang_texts, output_fp)
-    print(f"\nInterleaved text file has been created at {output_fp}.\nPlease edit the text strings as desired, because these will be used to create the subtitle files.")
+    print(
+        f"\nInterleaved text file has been created at {output_fp}.\nPlease edit the text strings as desired, because these will be used to create the subtitle files.")
 
 
 def get_existing_aligned_eaf_fp_from_text_dir(text_dir: Path):
     eaf_aligned_fps = list(text_dir.glob("*" + ALIGNED_SUFFIX + EAF_EXT))
     if len(eaf_aligned_fps) == 1:
-        eaf_fp ,= eaf_aligned_fps
+        eaf_fp, = eaf_aligned_fps
     elif len(eaf_aligned_fps) > 1:
-        raise Exception(f"there should be no more than one aligned .eaf transcript file in the directory")
+        raise Exception(
+            f"there should be no more than one aligned .eaf transcript file in the directory")
     else:
         eaf_fp = None
     return eaf_fp
@@ -158,21 +170,22 @@ def get_existing_unaligned_eaf_fp_from_text_dir(text_dir: Path):
     eaf_fps = list(text_dir.glob("*" + EAF_EXT))
     eaf_fps = [x for x in eaf_fps if not x.stem.endswith(ALIGNED_SUFFIX)]
     if len(eaf_fps) == 1:
-            eaf_fp ,= eaf_fps
+        eaf_fp, = eaf_fps
     else:
-        raise Exception(f"since you have no aligned .eaf transcript, there should be exactly one .eaf transcript file in the directory")
+        raise Exception(
+            f"since you have no aligned .eaf transcript, there should be exactly one .eaf transcript file in the directory")
 
     return eaf_fp
 
 
-
-def get_existing_eaf_fp_from_text_dir(text_dir: Path, prompt_if_not_aligned:bool=False):
+def get_existing_eaf_fp_from_text_dir(text_dir: Path, prompt_if_not_aligned: bool = False):
     aligned_eaf_fp = get_existing_aligned_eaf_fp_from_text_dir(text_dir)
     if aligned_eaf_fp is not None:
         return aligned_eaf_fp
     else:
         if prompt_if_not_aligned:
-            confirmed = confirm_action(f"\nWarning: there are no .eafs that are labeled as having been aligned with the video file (the .eaf should end in '{ALIGNED_SUFFIX}{EAF_EXT}'). Are you sure you have the right file?")
+            confirmed = confirm_action(
+                f"\nWarning: there are no .eafs that are labeled as having been aligned with the video file (the .eaf should end in '{ALIGNED_SUFFIX}{EAF_EXT}'). Are you sure you have the right file?")
             if not confirmed:
                 raise Exception("aborted")
         eaf_fp = get_existing_unaligned_eaf_fp_from_text_dir(text_dir)

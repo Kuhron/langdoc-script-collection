@@ -5,12 +5,11 @@ from pathlib import Path
 from util.Eaf import get_texts_and_times_from_eaf, get_existing_eaf_fp_from_text_dir
 
 
-
 def read_interleaved_text(text_fp: Path):
     text_lines = []
     block_dict = {}
     current_line = None
-    with open(text_fp, "r") as f:
+    with open(text_fp, "r", encoding="utf-8") as f:
         lines = f.readlines()
 
     for line in lines:
@@ -37,10 +36,11 @@ def read_interleaved_text(text_fp: Path):
 def create_srt_file_for_languages(text_dir, language_labels):
     if language_labels is None:
         raise ValueError("need to pass --langs argument")
-    
+
     interleaved_text_fp = text_dir / "InterleavedText.txt"
     if not interleaved_text_fp.exists():
-        raise Exception("need to run script with --action=txt first before creating .srt subtitles, because InterleavedText.txt is the input for creating subtitles")
+        raise Exception(
+            "need to run script with --action=txt first before creating .srt subtitles, because InterleavedText.txt is the input for creating subtitles")
     text_lines = read_interleaved_text(interleaved_text_fp)
 
     srt_lines = []
@@ -50,16 +50,18 @@ def create_srt_file_for_languages(text_dir, language_labels):
             try:
                 lang_s = d[lang]
             except KeyError:
-                raise Exception(f"language label {lang!r} not found in line {i+1}")
+                raise Exception(
+                    f"language label {lang!r} not found in line {i+1}")
             lang_strs.append(lang_s)
         srt_lines.append("\n".join(lang_strs))
-    
+
     lang_abbrev = "_".join(language_labels)
     output_fp = text_dir / f"Subtitles_{lang_abbrev}.srt"
-    eaf_fp = get_existing_eaf_fp_from_text_dir(text_dir, prompt_if_not_aligned=True)
+    eaf_fp = get_existing_eaf_fp_from_text_dir(
+        text_dir, prompt_if_not_aligned=True)
     _, _, start_times, end_times = get_texts_and_times_from_eaf(eaf_fp)
-    create_single_language_srt(srt_lines, start_times=start_times, end_times=end_times, out_file=output_fp)
-
+    create_single_language_srt(
+        srt_lines, start_times=start_times, end_times=end_times, out_file=output_fp)
 
 
 def create_single_language_srt(lines, start_times, end_times, out_file):
@@ -82,8 +84,8 @@ def create_single_language_srt(lines, start_times, end_times, out_file):
         line_to_write = f"{line_number_to_write}\n{start_time_str} --> {end_time_str}\n{line}\n\n"
         lines_to_write.append(line_to_write)
         line_number_to_write += 1
-    
-    with open(out_file, "w") as f:
+
+    with open(out_file, "w", encoding="utf-8") as f:
         for line in lines_to_write:
             f.write(line)
     print(f"wrote subtitles to {out_file}")
@@ -92,7 +94,8 @@ def create_single_language_srt(lines, start_times, end_times, out_file):
 def create_dual_language_srt(lines_1, lines_2, lang_abbrev_1, lang_abbrev_2, start_times, end_times, out_file):
     lines = [l1 + "\n" + l2 for l1, l2 in zip(lines_1, lines_2)]
     lang_abbrev = lang_abbrev_1 + lang_abbrev_2
-    create_single_language_srt(lines, lang_abbrev, start_times, end_times, out_file)
+    create_single_language_srt(
+        lines, lang_abbrev, start_times, end_times, out_file)
 
 
 def get_srt_time_str(time_ms):
@@ -103,7 +106,7 @@ def get_srt_time_str(time_ms):
 
 
 def create_sfm_file(targlang_lines, contlang_lines, session_dir):
-    with open(os.path.join(session_dir, "SfmOutput.sfm"), "w") as f:
+    with open(os.path.join(session_dir, "SfmOutput.sfm"), "w", encoding="utf-8") as f:
         i = 0
         # f.write("\\_sh\tv3.0\t520\tText\n")
         f.write("\\id Auto-generated text\n")
@@ -111,7 +114,8 @@ def create_sfm_file(targlang_lines, contlang_lines, session_dir):
             targlang = targlang.strip().replace(" ", "\t")
             contlang = contlang.strip()
             # f.write(f"\\ref wkjauto{i}\n")  # so Flex knows it's a new line, not like 1.1, 1.2, 1.3, etc.
-            f.write("\\ref\n")  # so Flex knows it's a new line, not like 1.1, 1.2, 1.3, etc.
+            # so Flex knows it's a new line, not like 1.1, 1.2, 1.3, etc.
+            f.write("\\ref\n")
             f.write(f"\\tx {targlang}\t\n")
             f.write(f"\\ft {contlang}\t\n")
             f.write("\\pb\n")  # attempting to make my own "ParagraphBreak" tag
@@ -120,14 +124,15 @@ def create_sfm_file(targlang_lines, contlang_lines, session_dir):
     print("done creating sfm file")
 
 
-
 def get_subtitles_and_other_lines_from_srt_file(lang_code, session_dir, other_lines_already_seen=None):
-    other_lines = [x for x in other_lines_already_seen] if other_lines_already_seen is not None else []
+    other_lines = [
+        x for x in other_lines_already_seen] if other_lines_already_seen is not None else []
     try:
-        with open(os.path.join(session_dir, f"Subtitles{lang_code}.srt")) as f:
+        with open(os.path.join(session_dir, f"Subtitles{lang_code}.srt"), encoding="utf-8") as f:
             lines = f.readlines()
     except FileNotFoundError:
-        print(f"you need to make subtitle file for {lang_code} (but make sure to align time first!)")
+        print(
+            f"you need to make subtitle file for {lang_code} (but make sure to align time first!)")
         return
 
     subtitles = []
@@ -154,10 +159,14 @@ def get_subtitles_and_other_lines_from_srt_file(lang_code, session_dir, other_li
             other_lines.append(None if i % 4 == 2 else line)
         elif len(other_lines) > i:
             if other_lines[i] != (None if i % 4 == 2 else line):
-                print("\n".join(f"{x} | {y}" for x,y in zip(subtitles, other_lines)) + "\n")
-                raise Exception(f"line {i} of {lang_code} disagrees with that previously found:\nshould be:\n{None if i % 4 == 2 else line}\nbut got:\n{other_lines[i]}")
+                print("\n".join(f"{x} | {y}" for x, y in zip(
+                    subtitles, other_lines)) + "\n")
+                raise Exception(
+                    f"line {i} of {lang_code} disagrees with that previously found:\nshould be:\n{None if i % 4 == 2 else line}\nbut got:\n{other_lines[i]}")
         else:
-            raise Exception("bad line appending, missed something along the way")
+            raise Exception(
+                "bad line appending, missed something along the way")
 
-    assert len(subtitles) == len(other_lines), f"{len(subtitles) = }, {len(other_lines) = }"
+    assert len(subtitles) == len(
+        other_lines), f"{len(subtitles) = }, {len(other_lines) = }"
     return subtitles, other_lines

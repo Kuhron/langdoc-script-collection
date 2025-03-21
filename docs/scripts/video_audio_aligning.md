@@ -48,6 +48,8 @@ For the script to run properly, the files related to a single text need to be in
 
 For the following shell commands, the directory path where this text's files are stored will be referred to as `TEXT_DIR`.
 
+TODO: Write up process of editing interleaved text.
+
 
 ```shell
 # view help
@@ -81,7 +83,12 @@ The script will create a temporary directory called `.tmp`, where the correlatio
 
 - TODO write up instructions for non-techy users (how to install git, clone the repo, python, install the requirements, note that newer pythons will need audioop-lts package because audioop was deprecated in 3.13)
 - TODO paste error messages so they can Ctrl-F their problem and find the solution as easily as possible
-    
+
+foreach($line in Get-Content requirements.txt) {pip install $line} 
+
+.\langdoc-script-collection\video-audio-aligning\lib\site-packages\pydub\utils.py:170: RuntimeWarning: Couldn't find ffmpeg or avconv - defaulting to ffmpeg, but may not work
+  warn("Couldn't find ffmpeg or avconv - defaulting to ffmpeg, but may not work", RuntimeWarning)
+
 If Python complains that you cannot install the `audioop` package because it is deprecated, use pip to install the long-term support version:
 ```shell
 python -m pip install audioop-lts
