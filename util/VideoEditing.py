@@ -17,7 +17,7 @@ from util.SoundFileStatistics import DEFAULT_RMS_WINDOW_SECONDS, seconds_to_samp
 
 def add_subtitle_to_video_clip(video:moviepy.VideoFileClip, subtitles_path:Path, offset_s:Number) -> moviepy.VideoFileClip:
     # this adds the subtitles to the actual video, not just text subtitles that can be turned on/off, it will actually be on the video images
-    # TODO at some point, can move the subtitles into a better position and give text black background, but for now I'll just use YouTube .srt functionality
+    # at some point, can move the subtitles into a better position and give text black background, but for now I'll just use YouTube .srt functionality
 
     font_path = Path("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf")
     generator = lambda txt: moviepy.TextClip(text=txt, font=font_path, font_size=24, color="white")
