@@ -5,6 +5,7 @@ Download a [ZIP](https://github.com/fmatter/langdoc-script-collection/archive/re
 ```
 git clone https://github.com/fmatter/langdoc-script-collection
 ```
+(If you do not have Git installed, install it.)
 
 See the documentation for individual scripts for usage instructions.
 It is recommended to use a [virtual environment](https://docs.python.org/3/library/venv.html) to install necessary packages.
@@ -18,7 +19,7 @@ To add a script to the collection, [fork the github repository](https://github.c
     * a license
 2. a `docs/scripts/my_script.md` file with least:
     * basic setup and usage instructions
-    * tags (check mkdocs.yaml and add if neessary)
+    * tags (check mkdocs.yaml and add if necessary)
     * requirements
 
 Look at existing scripts and their documentation to compare 
