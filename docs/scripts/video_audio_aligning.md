@@ -107,6 +107,8 @@ TranslationCleaned:  bung na
 ----
 ```
 
+The script created two copies of each transcription and translation line for you, so you can keep the raw/unedited one for reference while you work on cleaning up the text and translating it into any other languages.
+
 The transcription language here is Hurukui, which I like to abbreviate as "Hk", and the transcription language is Tok Pisin (TP). So I go through `InterleavedText.txt` and manually edit the `TranscriptionCleaned` and `TranslationCleaned` rows (replacing these labels with "Hk" and "TP" when I'm done cleaning them), and I add an `Eng` row where I manually type an English translation. The result looks like this:
 
 ```shell
@@ -129,7 +131,7 @@ Eng: we were still en route when we ran into Marepo
 TranscriptionRaw: harawohe
 Hk: harawohe
 TranslationRaw:  bung na
-TP:  bung na
+TP: bung na
 Eng: we met, and
 ----
 ```
@@ -165,6 +167,8 @@ python video_audio_aligning.py TEXT_DIR --action=srt --langs=Hk,Eng
 ```
 
 This creates a new subtitle file called `Subtitles_Hk_Eng.srt`.
+
+The script does not care if there are other row labels present in `InterleavedText.txt` besides the ones you are making into a subtitle file, so you can use the same `InterleavedText.txt` with all of your languages even if you are only making .srt files for one or a few of the languages.
 
 ## Troubleshooting
 
