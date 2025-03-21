@@ -48,9 +48,6 @@ For the script to run properly, the files related to a single text need to be in
 
 For the following shell commands, the directory path where this text's files are stored will be referred to as `TEXT_DIR`.
 
-TODO: Write up process of editing interleaved text.
-
-
 ```shell
 # view help
 python video_audio_aligning.py -h
@@ -64,9 +61,17 @@ If you want to make subtitles and/or adjust the timestamps on an .eaf transcript
 
 ```shell
 python video_audio_aligning.py TEXT_DIR --action=eaf
+```
 
+For making subtitles for the video, you will need an aligned .eaf transcript (made using `--action=eaf` described above), then you will need to create `InterleavedText.txt` using `--action=txt`.
+
+```shell
 python video_audio_aligning.py TEXT_DIR --action=txt
+```
 
+Now that `InterleavedText.txt` has been created, open it in a text editor and TODO
+
+```shell
 # expects lines labeled "Hk:" and "Eng:" in InterleavedText.txt
 python video_audio_aligning.py TEXT_DIR --action=srt --langs=Hk,Eng
 ```
@@ -84,7 +89,14 @@ The script will create a temporary directory called `.tmp`, where the correlatio
 - TODO write up instructions for non-techy users (how to install git, clone the repo, python, install the requirements, note that newer pythons will need audioop-lts package because audioop was deprecated in 3.13)
 - TODO paste error messages so they can Ctrl-F their problem and find the solution as easily as possible
 
-foreach($line in Get-Content requirements.txt) {pip install $line} 
+```shell
+cat requirements.txt | xargs -n 1 python -m pip install  # on Linux or Mac
+
+foreach($line in Get-Content requirements.txt) {python -m pip install $line}  # on Windows Powershell
+
+FOR /F %k in (requirements.txt) DO pip install %k  # on Windows cmd
+```
+If none of these work, see [here](https://stackoverflow.com/questions/22250483/stop-pip-from-failing-on-single-package-when-installing-with-requirements-txt) for more possible commands to run.
 
 .\langdoc-script-collection\video-audio-aligning\lib\site-packages\pydub\utils.py:170: RuntimeWarning: Couldn't find ffmpeg or avconv - defaulting to ffmpeg, but may not work
   warn("Couldn't find ffmpeg or avconv - defaulting to ffmpeg, but may not work", RuntimeWarning)

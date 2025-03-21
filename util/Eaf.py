@@ -173,7 +173,7 @@ def get_existing_unaligned_eaf_fp_from_text_dir(text_dir: Path):
         eaf_fp, = eaf_fps
     else:
         raise Exception(
-            f"since you have no aligned .eaf transcript, there should be exactly one .eaf transcript file in the directory")
+            f"since you are using an unaligned .eaf transcript, there should be exactly one .eaf transcript file in the directory")
 
     return eaf_fp
 
@@ -183,10 +183,10 @@ def get_existing_eaf_fp_from_text_dir(text_dir: Path, prompt_if_not_aligned: boo
     if aligned_eaf_fp is not None:
         return aligned_eaf_fp
     else:
+        eaf_fp = get_existing_unaligned_eaf_fp_from_text_dir(text_dir)
         if prompt_if_not_aligned:
             confirmed = confirm_action(
-                f"\nWarning: there are no .eafs that are labeled as having been aligned with the video file (the .eaf should end in '{ALIGNED_SUFFIX}{EAF_EXT}'). Are you sure you have the right file?")
+                f"\nWarning: there are no .eafs that are labeled as having been aligned with the video file (the .eaf should end in '{ALIGNED_SUFFIX}{EAF_EXT}'). Instead the file used will be:\n{eaf_fp}\nAre you sure this is the right file?")
             if not confirmed:
                 raise Exception("aborted")
-        eaf_fp = get_existing_unaligned_eaf_fp_from_text_dir(text_dir)
         return eaf_fp

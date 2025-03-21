@@ -3,7 +3,10 @@ from pathlib import Path
 from warnings import warn
 
 import util.WavFiles as wv
-from util.SoundFileStatistics import sliding_rms
+from util.SoundFileStatistics import sliding_rms, samples_to_seconds, seconds_to_samples, DEFAULT_RMS_WINDOW_SECONDS
+from util.VideoAudioAligningOrganization import get_single_audio_and_video_fps_from_text_dir, get_tmp_dir_path
+from util.FileTypeDetection import DEFAULT_AUDIO_EXTENSION, DEFAULT_VIDEO_EXTENSION
+import util.AudioOfVideoFiles as av
 
 
 def get_correlation_from_offset(v_arr_rms, a_arr_rms, offset_samples):
@@ -43,13 +46,60 @@ def find_correlations_binary_search(v_arr_rms, a_arr_rms, offsets_samples):
     raise NotImplementedError
 
 
-def get_rms_array_from_audio_file(audio_fp, rms_window_samples):
+def get_rms_array_from_audio_file(audio_fp, rms_window_samples=None):
+    if rms_window_samples is None:
+        rms_window_samples = seconds_to_samples(DEFAULT_RMS_WINDOW_SECONDS)
     a_arr = wv.get_array_from_file(audio_fp)
     a_arr_rms = sliding_rms(a_arr, rms_window_samples)
     return a_arr_rms
 
 
-def make_correlation_file(audio_fp_1, audio_fp_2, rms_window_samples, corr_fp):
+def create_audio_files_to_correlate(text_dir: Path):
+    audio_fp, video_fp = get_single_audio_and_video_fps_from_text_dir(text_dir, audio_ext=DEFAULT_AUDIO_EXTENSION, video_ext=DEFAULT_VIDEO_EXTENSION)
+
+    # if audio is stereo, make mono tmp file (for computing correlations)
+    # if audio is stereo, use the stereo not mono file for new video
+
+    audio_from_video_fp = av.get_tmp_fp_for_audio_from_video(video_fp)
+    av.write_audio_from_video_to_new_audio_file(video_fp, audio_from_video_fp)
+
+    tmp_dir_path = get_tmp_dir_path(text_dir)
+
+    if wv.audio_fp_is_stereo(audio_fp):
+        assert audio_fp.parent == text_dir, audio_fp.parent
+        audio_mono_output_fp = wv.get_tmp_fp_for_mono_audio(audio_fp, maintain_parent=False)
+        assert audio_mono_output_fp.parent == tmp_dir_path, audio_mono_output_fp.parent
+        wv.stereo_wav_to_mono(audio_fp, audio_mono_output_fp)
+        audio_fp_to_correlate = audio_mono_output_fp
+    else:
+        audio_fp_to_correlate = audio_fp
+    
+    if wv.audio_fp_is_stereo(audio_from_video_fp):
+        assert audio_from_video_fp.parent == tmp_dir_path, audio_from_video_fp.parent
+        video_audio_mono_output_fp = wv.get_tmp_fp_for_mono_audio(audio_from_video_fp, maintain_parent=True)
+        assert video_audio_mono_output_fp.parent == tmp_dir_path, video_audio_mono_output_fp.parent
+        wv.stereo_wav_to_mono(audio_from_video_fp, video_audio_mono_output_fp)
+        video_audio_fp_to_correlate = video_audio_mono_output_fp
+    else:
+        video_audio_fp_to_correlate = audio_from_video_fp
+
+    print(f"will correlate these two audio files:\n{audio_fp_to_correlate}\n{video_audio_fp_to_correlate}")
+    return audio_fp_to_correlate, video_audio_fp_to_correlate
+
+
+def make_correlation_file_from_text_dir(text_dir: Path) -> None:
+    tmp_dir = get_tmp_dir_path(text_dir, create_if_absent=True)
+    corr_fp = get_correlation_fp(tmp_dir)
+
+    if corr_fp.exists():
+        print(f"all correlations already computed")
+    else:
+        audio_fp_to_correlate, video_audio_fp_to_correlate = create_audio_files_to_correlate(text_dir)
+        rms_window_samples = seconds_to_samples(DEFAULT_RMS_WINDOW_SECONDS)
+        make_correlation_file_from_audios(video_audio_fp_to_correlate, audio_fp_to_correlate, rms_window_samples, corr_fp)
+
+
+def make_correlation_file_from_audios(audio_fp_1, audio_fp_2, rms_window_samples, corr_fp):
     # Offset applied to second audio file.
     print(f"making correlation file for \n {audio_fp_1 = } \n {audio_fp_2 = }")
 
@@ -75,13 +125,24 @@ def make_correlation_file(audio_fp_1, audio_fp_2, rms_window_samples, corr_fp):
     print(f"wrote correlations to {corr_fp}")
 
 
-def get_correlation_fp(temp_dir):
+def get_correlation_fp(temp_dir: Path) -> Path:
     corr_fname = "corr.txt"
     corr_fp = temp_dir / corr_fname
     return corr_fp
 
 
-def get_max_correlation_position(corr_fp):
+def get_text_dir_from_correlation_fp(corr_fp: Path) -> Path:
+    par = corr_fp.parent
+    assert par.name == ".tmp", "correlation fp is not in a .tmp directory"
+    return par.parent
+
+
+def get_max_correlation_position(corr_fp: Path) -> int:
+    if not corr_fp.exists():
+        # create it
+        text_dir = get_text_dir_from_correlation_fp(corr_fp)
+        make_correlation_file_from_text_dir(text_dir)
+
     discrepancy_tolerance = 0.05 * wv.RATE
 
     with open(corr_fp) as f:

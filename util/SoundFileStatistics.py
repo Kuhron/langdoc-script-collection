@@ -1,5 +1,10 @@
 import numpy as np
 
+from util.WavFiles import RATE
+
+
+DEFAULT_RMS_WINDOW_SECONDS = 0.2
+
 
 def rms(arr):
     return (np.mean(arr**2))**0.5
@@ -27,3 +32,11 @@ def sliding_rms(arr, window):
         window_rms = window_mean ** 0.5
         b[i + n_in_front] = window_rms
     return np.array(b)
+
+
+def samples_to_seconds(n):
+    return n / RATE
+
+
+def seconds_to_samples(n):
+    return int(round(n * RATE))

@@ -19,6 +19,7 @@ from util.VideoAudioAligningOrganization import get_tmp_dir_path, create_tmp_dir
 from util.VideoEditing import create_new_video_file_with_aligned_audio
 from util.Eaf import create_shifted_eaf_file_from_text_dir, create_interleaved_text_file_from_eaf
 from util.Subtitles import create_srt_file_for_languages
+from util.FileTypeDetection import DEFAULT_AUDIO_EXTENSION, DEFAULT_VIDEO_EXTENSION
 
 
 def dir_path(path_str: str):
@@ -64,8 +65,8 @@ if __name__ == "__main__":
     tmp_dir_path = get_tmp_dir_path(args.dir_path)
     create_tmp_dir(tmp_dir_path)
 
-    audio_ext = ".WAV"
-    video_ext = ".MTS"
+    audio_ext = DEFAULT_AUDIO_EXTENSION
+    video_ext = DEFAULT_VIDEO_EXTENSION
     eaf_ext = ".eaf"
     subtitle_ext = ".srt"
 

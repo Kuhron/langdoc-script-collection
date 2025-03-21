@@ -3,12 +3,15 @@ from moviepy.video.tools.subtitles import SubtitlesClip
 from pathlib import Path
 from numbers import Number
 from warnings import warn
+from typing import Tuple
 import argparse
 
 import util.WavFiles as wv
 import util.AudioOfVideoFiles as av
 import util.Correlation as corr
-from util.VideoAudioAligningOrganization import get_tmp_dir_path, create_tmp_dir, delete_tmp_dir
+from util.VideoAudioAligningOrganization import get_tmp_dir_path, create_tmp_dir, delete_tmp_dir, get_single_audio_and_video_fps_from_text_dir
+from util.FileTypeDetection import DEFAULT_AUDIO_EXTENSION, DEFAULT_VIDEO_EXTENSION
+from util.SoundFileStatistics import DEFAULT_RMS_WINDOW_SECONDS, seconds_to_samples
 
 
 
@@ -34,69 +37,14 @@ def write_video_clip_to_file(video:moviepy.VideoFileClip, video_path:Path) -> No
 
 
 def create_new_video_file_with_aligned_audio(text_dir: Path, tmp_dir_path: Path, audio_ext: str, video_ext: str):
-    audio_fps = list(text_dir.glob("*" + audio_ext))
-    if len(audio_fps) != 1:
-        zero = len(audio_fps) == 0
-        error_str = f"there should be exactly one audio file ({audio_ext}) in the directory, but found " + ("none" if zero else f"the following {len(audio_fps)}:")
-        for fp in audio_fps:
-            error_str += str(fp) + "\n"
-        raise Exception(error_str)
-    video_fps = list(text_dir.glob("*" + video_ext))
-    if len(video_fps) != 1:
-        zero = len(video_fps) == 0
-        error_str = f"there should be exactly one video file ({video_ext}) in the directory, but found " + ("none" if zero else f"the following {len(video_fps)}:")
-        for fp in video_fps:
-            error_str += str(fp) + "\n"
-        raise Exception(error_str)
-
-    audio_fp ,= audio_fps
-    video_fp ,= video_fps
-
-    if not audio_fp.is_absolute():
-        warn("audio fp is not absolute")
-    if not video_fp.is_absolute():
-        warn("video fp is not absolute")
-
-    # if audio is stereo, make mono tmp file (for computing correlations)
-    # if audio is stereo, use the stereo not mono file for new video
-
-    audio_from_video_fp = av.get_tmp_fp_for_audio_from_video(video_fp)
-    av.write_audio_from_video_to_new_audio_file(video_fp, audio_from_video_fp)
-
-    if wv.audio_fp_is_stereo(audio_fp):
-        assert audio_fp.parent == text_dir, audio_fp.parent
-        audio_mono_output_fp = wv.get_tmp_fp_for_mono_audio(audio_fp, maintain_parent=False)
-        assert audio_mono_output_fp.parent == tmp_dir_path, audio_mono_output_fp.parent
-        wv.stereo_wav_to_mono(audio_fp, audio_mono_output_fp)
-        audio_fp_to_correlate = audio_mono_output_fp
-    else:
-        audio_fp_to_correlate = audio_fp
-    
-    if wv.audio_fp_is_stereo(audio_from_video_fp):
-        assert audio_from_video_fp.parent == tmp_dir_path, audio_from_video_fp.parent
-        video_audio_mono_output_fp = wv.get_tmp_fp_for_mono_audio(audio_from_video_fp, maintain_parent=True)
-        assert video_audio_mono_output_fp.parent == tmp_dir_path, video_audio_mono_output_fp.parent
-        wv.stereo_wav_to_mono(audio_from_video_fp, video_audio_mono_output_fp)
-        video_audio_fp_to_correlate = video_audio_mono_output_fp
-    else:
-        video_audio_fp_to_correlate = audio_from_video_fp
-
-    print(f"will correlate these two audio files:\n{audio_fp_to_correlate}\n{video_audio_fp_to_correlate}")
-
+    audio_fp, video_fp = get_single_audio_and_video_fps_from_text_dir(text_dir, audio_ext, video_ext)
+    corr.make_correlation_file_from_text_dir(text_dir)
     corr_fp = corr.get_correlation_fp(tmp_dir_path)
-
-    if corr_fp.exists():
-        print(f"all correlations already computed")
-    else:
-        rms_window_seconds = 0.2
-        rms_window_samples = int(round(rms_window_seconds * wv.RATE))
-        corr.make_correlation_file(video_audio_fp_to_correlate, audio_fp_to_correlate, rms_window_samples, corr_fp)
-
+    
     best_offset_samples = corr.get_max_correlation_position(corr_fp)
     print(f"{best_offset_samples = }")
 
-    extension_to_write = ".MTS"
-    # extension_to_write = ".mp4"
+    extension_to_write = DEFAULT_VIDEO_EXTENSION
     new_video_path = text_dir / (video_fp.name + "_Aligned" + extension_to_write)
     if new_video_path.exists():
         raise FileExistsError(new_video_path)
