@@ -6,6 +6,7 @@ from typing import List
 import util.Correlation as cor
 from util.VideoAudioAligningOrganization import get_tmp_dir_path
 from util.CliUtil import confirm_action
+from util.WavFiles import RATE
 
 
 EAF_EXT = ".eaf"
@@ -18,7 +19,7 @@ def create_shifted_eaf_file_helper(existing_eaf_fp, new_eaf_fp, best_offset_samp
     if os.path.exists(new_eaf_fp) and not allow_overwrite:
         raise Exception(f"would overwrite file {new_eaf_fp}")
     # convert time units!
-    best_offset_ms = int(round(best_offset_samples * 1000/44100))
+    best_offset_ms = int(round(best_offset_samples * 1000/RATE))
     with open(existing_eaf_fp, encoding="utf-8") as f:
         lines = f.readlines()
     new_lines = []
@@ -54,8 +55,7 @@ def create_shifted_eaf_file_from_text_dir(text_dir: Path):
     input_eaf_fp = get_existing_unaligned_eaf_fp_from_text_dir(text_dir)
     if input_eaf_fp is None:
         raise Exception("no input .eaf file found!")
-    output_eaf_fp = input_eaf_fp.parent / \
-        f"{input_eaf_fp.stem}{ALIGNED_SUFFIX}{EAF_EXT}"
+    output_eaf_fp = input_eaf_fp.parent / f"{input_eaf_fp.stem}{ALIGNED_SUFFIX}{EAF_EXT}"
     create_shifted_eaf_file_helper(
         input_eaf_fp, output_eaf_fp, best_offset_samples)
 
