@@ -43,12 +43,59 @@ video-audio-aligning/Scripts/activate  # on Windows
 python -m pip install -r requirements.txt
 ```
 
+Setup on Windows 11 (64-bit)
+- install Python
+- install Git
+- cd into your home directory in Powershell
+- clone the langdoc-script-collection repo
+-- in Powershell:
+```shell
+git clone https://github.com/Kuhron/langdoc-script-collection
+```
+
+- switch to video-audio-aligning branch: 
+```shell
+git checkout video-audio-aligning
+```
+- make a virtual environment for installing the required Python packages: 
+```shell
+python -m venv ../.venvs/video-audio-aligning
+```
+
+- activate the virtual env:
+```shell
+../.venvs/video-audio-aligning/Scripts/activate
+```
+
+- if get error:
+```shell
+File C:\Users\{username}\.venvs\video-audio-aligning\Scripts\Activate.ps1 cannot be loaded because running
+scripts is disabled on this system. For more information, see about_Execution_Policies at https:/go.microsoft.com/fwlink/?LinkID=135170.
+```
+
+- then you need to enable running unsigned scripts in Powershell so that you can activate the venv. Close the terminal and reopen it with "Run as administrator", then run: 
+```shell
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy Unrestricted -Force;
+```
+- then go back into the langdoc-script-collection directory and try activating the venv again
+
+- once the venv is activated, you should see a green "(video-audio-aligning)" prefix on your command prompt
+- install the required Python package dependencies:
+```shell
+python -m pip install -r requirements.txt
+```
+
 ## Execution
 For the script to run properly, the files related to a single text need to be in a directory together. The script expects a single video file (.MTS format), and a single audio file (.WAV format). If either of these are missing, or if there are more than one of these types of files, then it will error.
 
 For the following shell commands, the directory path where this text's files are stored will be referred to as `TEXT_DIR`.
 
 Minor note: The script will create a temporary directory called `.tmp`, where the correlation statistics and temporary media files (such as the audio that was stripped off of the video file) are stored. This can be removed once you are done using the script, and the script can re-compute it anytime as needed.
+
+- TODO WKJ: make steps of workflow more clear and user-friendly here, move mention of viewing help and other unimportant commands to the end/later, mostly want them to know how to enter the directory path, can show example Powershell command series
+"C:\Users\emmam\OneDrive\Desktop\Brisi Hedu"  # has space in filepath, needs quotes
+- TODO stop asking user to remove temp files, just remove the temp audio ourselves automatically
+
 
 ### Viewing help
 
@@ -191,7 +238,14 @@ If Python complains that you cannot install the `audioop` package because it is 
 python -m pip install audioop-lts
 ```
 
+If the script runs but then crashes with "ModuleNotFoundError: No module named 'pyaudioop'":
+```shell
+python -m pip install audioop-lts
+```
+
 If the script complains that your directory where you stored the files (`TEXT_DIR`) is not a directory and you are on Windows, it might be because that directory is a OneDrive link. Try copying the files into a directory that is stored locally on your computer or on an external hard drive, and not a OneDrive link.
+
+If the resulting .MTS video does not play in your default media player, try playing it in VLC Media Player.
 
 
 ## Source
