@@ -27,6 +27,12 @@ def delete_tmp_dir(tmp_dir_path):
         print("temporary files dir was not removed")
 
 
+def delete_audio_from_tmp_dir(tmp_dir_path, audio_suffix):
+    for fp in tmp_dir_path.glob("*" + audio_suffix):
+        fp.unlink()
+        print(f"deleted temporary audio file: {fp}")
+
+
 def get_single_audio_and_video_fps_from_text_dir(text_dir: Path, audio_ext: str, video_ext: str) -> Tuple[Path]:
     audio_fps = list(text_dir.glob("*" + audio_ext))
     if len(audio_fps) != 1:

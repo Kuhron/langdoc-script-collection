@@ -26,35 +26,50 @@ Actions:
 ## Setup
 The script is run in the command line, with different actions done by passing arguments and flags.
 
-Requirements:
+Setup on Linux:
+- install Python
+- install Git
+- cd into your home directory
 
+- clone the `langdoc-script-collection` repo:
 ```shell
-# go into the repo's directory
+git clone https://github.com/Kuhron/langdoc-script-collection
+```
+
+- enter the cloned directory and switch to video-audio-aligning branch: 
+```shell
 cd langdoc-script-collection
+git checkout video-audio-aligning
+```
 
-# create virtual environment
-python -m venv video-audio-aligning
+- make a virtual environment for installing the required Python packages: 
+```shell
+python -m venv ~/.venvs/video-audio-aligning
+```
 
-# activate the virtual environment
-source video-audio-aligning/bin/activate  # on Linux
-video-audio-aligning/Scripts/activate  # on Windows
+- activate the virtual environment:
+```shell
+source video-audio-aligning/bin/activate
+```
 
-# install requirements
+- install the required Python package dependencies:
+```shell
 python -m pip install -r requirements.txt
 ```
 
 Setup on Windows 11 (64-bit)
 - install Python
 - install Git
-- cd into your home directory in Powershell
-- clone the langdoc-script-collection repo
--- in Powershell:
+- open Powershell (the "Terminal" app, which you may need to run as administrator for some of the following steps to work correctly)
+- cd into your home directory
+
+- clone the `langdoc-script-collection` repo:
 ```shell
 git clone https://github.com/Kuhron/langdoc-script-collection
 ```
-
-- switch to video-audio-aligning branch: 
+- enter the cloned directory and switch to video-audio-aligning branch: 
 ```shell
+cd langdoc-script-collection
 git checkout video-audio-aligning
 ```
 - make a virtual environment for installing the required Python packages: 
@@ -62,12 +77,12 @@ git checkout video-audio-aligning
 python -m venv ../.venvs/video-audio-aligning
 ```
 
-- activate the virtual env:
+- activate the virtual environment:
 ```shell
 ../.venvs/video-audio-aligning/Scripts/activate
 ```
 
-- if get error:
+- if you get this error while trying to activate the venv:
 ```shell
 File C:\Users\{username}\.venvs\video-audio-aligning\Scripts\Activate.ps1 cannot be loaded because running
 scripts is disabled on this system. For more information, see about_Execution_Policies at https:/go.microsoft.com/fwlink/?LinkID=135170.
@@ -77,9 +92,9 @@ scripts is disabled on this system. For more information, see about_Execution_Po
 ```shell
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy Unrestricted -Force;
 ```
-- then go back into the langdoc-script-collection directory and try activating the venv again
+- then go back into the `langdoc-script-collection` directory and try activating the venv again
 
-- once the venv is activated, you should see a green "(video-audio-aligning)" prefix on your command prompt
+- once the venv is activated, you should see a green `(video-audio-aligning)` prefix on your command prompt
 - install the required Python package dependencies:
 ```shell
 python -m pip install -r requirements.txt
@@ -90,20 +105,31 @@ For the script to run properly, the files related to a single text need to be in
 
 For the following shell commands, the directory path where this text's files are stored will be referred to as `TEXT_DIR`.
 
-Minor note: The script will create a temporary directory called `.tmp`, where the correlation statistics and temporary media files (such as the audio that was stripped off of the video file) are stored. This can be removed once you are done using the script, and the script can re-compute it anytime as needed.
+## Basic workflow
 
-- TODO WKJ: make steps of workflow more clear and user-friendly here, move mention of viewing help and other unimportant commands to the end/later, mostly want them to know how to enter the directory path, can show example Powershell command series
-"C:\Users\emmam\OneDrive\Desktop\Brisi Hedu"  # has space in filepath, needs quotes
-- TODO stop asking user to remove temp files, just remove the temp audio ourselves automatically
-
-
-### Viewing help
-
+Make the aligned video, then the aligned transcript, then `InterleavedText.txt`:
 ```shell
-# view help
-python video_audio_aligning.py -h
-python video_audio_aligning.py --help
+python video_audio_aligning.py TEXT_DIR --action=video
+python video_audio_aligning.py TEXT_DIR --action=eaf
+python video_audio_aligning.py TEXT_DIR --action=txt
 ```
+Then edit `InterleavedText.txt` manually in Notepad or some other text editor, then create subtitles based on its contents:
+```shell
+python video_audio_aligning.py TEXT_DIR --action=srt --langs=Hurukui
+python video_audio_aligning.py TEXT_DIR --action=srt --langs=Hurukui,English
+python video_audio_aligning.py TEXT_DIR --action=srt --langs=English
+```
+
+Note: The `TEXT_DIR` variable should be replaced with the filepath to the directory where your video and audio file for this text are located. If the directory path has spaces in it, it will need to be in quotes. For example:
+```shell
+python video_audio_aligning.py texts/AirplaneStory --action=video
+
+python video_audio_aligning.py "C:\Users\wkj\OneDrive\Desktop\Example Text 1" --action=video  # has space in filepath, needs quotes
+```
+
+See below for more details about how to do the action in each of these steps.
+
+## Description of the actions one-by-one
 
 ### Action: creating video with audio replaced and aligned to video timing
 
@@ -216,6 +242,15 @@ python video_audio_aligning.py TEXT_DIR --action=srt --langs=Hk,Eng
 This creates a new subtitle file called `Subtitles_Hk_Eng.srt`.
 
 The script does not care if there are other row labels present in `InterleavedText.txt` besides the ones you are making into a subtitle file, so you can use the same `InterleavedText.txt` with all of your languages even if you are only making .srt files for one or a few of the languages.
+
+
+### Viewing help
+
+```shell
+# view help
+python video_audio_aligning.py -h
+python video_audio_aligning.py --help
+```
 
 ## Troubleshooting
 

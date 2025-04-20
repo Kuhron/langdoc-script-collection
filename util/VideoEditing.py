@@ -9,7 +9,7 @@ import argparse
 import util.WavFiles as wv
 import util.AudioOfVideoFiles as av
 import util.Correlation as corr
-from util.VideoAudioAligningOrganization import get_tmp_dir_path, create_tmp_dir, delete_tmp_dir, get_single_audio_and_video_fps_from_text_dir
+from util.VideoAudioAligningOrganization import get_tmp_dir_path, create_tmp_dir, delete_audio_from_tmp_dir, get_single_audio_and_video_fps_from_text_dir
 from util.FileTypeDetection import DEFAULT_AUDIO_EXTENSION, DEFAULT_VIDEO_EXTENSION
 from util.SoundFileStatistics import DEFAULT_RMS_WINDOW_SECONDS, seconds_to_samples
 
@@ -54,5 +54,6 @@ def create_new_video_file_with_aligned_audio(text_dir: Path, tmp_dir_path: Path,
     # new_video = add_subtitle_to_video_clip(new_video, subtitles_path, offset_s)
     write_video_clip_to_file(new_video, new_video_path)
 
-    # once done with everything, give user option to delete the tmp files or keep them to run script again faster next time
-    delete_tmp_dir(tmp_dir_path)
+    # clean up audio files that take up disk space
+    # but keep computed correlations so that eaf action can still see the offset and won't freak out that there are now two videos in the text dir
+    delete_audio_from_tmp_dir(tmp_dir_path, audio_suffix=wv.MOVIEPY_AUDIO_EXTENSION_TO_WRITE)
