@@ -27,10 +27,7 @@ def get_array_from_file(fp: Path):
     return arr.reshape((m,))
 
 
-def get_array_from_file_reading_binary_directly(fp, zoom_or_audacity="zoom"):
-    if zoom_or_audacity not in ["zoom", "audacity"]:
-        raise ValueError(f"Invalid recorder specified: {zoom_or_audacity = !r}, but needs to be either 'zoom' (for Zoom H5 or H6 recorder) or 'audacity' (for Audacity program)")
-
+def get_array_from_file_reading_binary_directly(fp, zoom=True):
     print(f"opening {fp}")
     with open(fp, "rb") as f:
         contents = f.read()
@@ -39,7 +36,7 @@ def get_array_from_file_reading_binary_directly(fp, zoom_or_audacity="zoom"):
 
     # TODO/FIXME there might be bug here due to hardcoding the number of bytes used for padding by different recording devices
     # ideally use a library to get wav data
-    padding = 65536 if zoom_or_audacity else 22  # Audacity uses a different value for some reason
+    padding = 65536 if zoom else 22  # Audacity uses a different value for some reason
 
     samples = len(hx) / 4 - padding
     assert samples % 1 == 0, f"samples should be an integer, got {samples}"
@@ -65,7 +62,8 @@ def get_array_from_file_reading_binary_directly(fp, zoom_or_audacity="zoom"):
             n = -1 * (2**16 - 1 - n)
         arr.append(n)
 
-    return np.array(arr) / MAX_AMPLITUDE, header_hex
+    arr_adjusted = np.array(arr) / MAX_AMPLITUDE
+    return arr_adjusted, header_hex
 
 
 def audio_segment_is_mono(sound: AudioSegment) -> bool:

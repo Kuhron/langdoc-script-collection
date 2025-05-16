@@ -8,9 +8,9 @@
 zoom = True
 
 # selecting the file
-n = "0394"
+n = "0021"
 suffix = "Tr1"
-fp = f"Transcriptions/temp/ZOOM{n}/ZOOM{n}_{suffix}.WAV"
+fp = f"/mnt/c/Users/jazzz/Desktop/AudioEditing/ZOOM{n}_{suffix}.WAV"
 
 # what amplitude is considered "quiet", i.e., not containing speech
 cutting_amplitude = 0.002
@@ -30,6 +30,7 @@ target_amplitude = 0.25
 import math
 import numpy as np
 import matplotlib.pyplot as plt
+from pathlib import Path
 
 from util.SoundFileStatistics import sliding_rms
 from util.WavFiles import RATE, MAX_AMPLITUDE, get_array_from_file_reading_binary_directly
@@ -159,10 +160,13 @@ def get_cutting_points(rms_arr, cutting_amplitude):
     start_cut = -0.5
     end_cut = len(rms_arr) - 1 + 0.5
     # if we have cuttable intervals that overlap the start or end, ignore them
-    if cuttable_intervals[0][0] == 0:
-        cuttable_intervals.remove(cuttable_intervals[0])
-    if cuttable_intervals[-1][-1] == len(rms_arr) - 1:
-        cuttable_intervals.remove(cuttable_intervals[-1])
+    try:
+        if cuttable_intervals[0][0] == 0:
+            cuttable_intervals.remove(cuttable_intervals[0])
+        if cuttable_intervals[-1][-1] == len(rms_arr) - 1:
+            cuttable_intervals.remove(cuttable_intervals[-1])
+    except IndexError:
+        print("warning: no cuttable intervals found")
     # for all the other ones, put the middle plus 0.5
     cutting_points = [0.5 + int((a + b)/2) for a, b in cuttable_intervals]
     cutting_points = [start_cut] + cutting_points + [end_cut]
@@ -170,14 +174,40 @@ def get_cutting_points(rms_arr, cutting_amplitude):
     return cutting_points, sound_intervals, average_amplitudes
 
 
+def debug_inspect_array(arr):
+    i = 0
+    while i < len(arr):
+        print(arr[i:i+100])
+        i += 100
+        input("press enter for next chunk")
+    print("end of array")
+
 
 if __name__ == "__main__":
+    output_fp = Path(fp.replace(".", "_Amplified."))
+
     window_samples = int(RATE * window_seconds)
     arr, header_hex = get_array_from_file_reading_binary_directly(fp, zoom)
-    print("getting sliding rms")
-    rms_arr = sliding_rms(arr, window_samples)
-    assert len(arr) == len(rms_arr)
-    print("done getting sliding rms")
+
+    # debug_inspect_array(arr)
+
+    rms_fp = Path(fp + "_rms.txt")
+    if rms_fp.exists():
+        with open(rms_fp) as f:
+            lines = f.readlines()
+        vals = [float(l.strip()) for l in lines if l.strip() != ""]
+        rms_arr = np.array(vals)
+    else:
+        print("getting sliding rms")
+        rms_arr = sliding_rms(arr, window_samples)
+        assert len(arr) == len(rms_arr)
+        print("done getting sliding rms")
+        with open(rms_fp, "w") as f:
+            for x in rms_arr:
+                f.write(f"{x}\n")
+
+    # print(max(rms_arr))
+    # debug_inspect_array(rms_arr)
 
     print("getting cutting points")
     cutting_points, sound_intervals, average_amplitudes = get_cutting_points(rms_arr, cutting_amplitude)
@@ -245,7 +275,6 @@ if __name__ == "__main__":
     assert b.min() >= 0 and b.max() <= 255
     b = bytes.fromhex(header_hex) + bytes(x for x in b)  # don't cast np array to bytes, it messes the result up somehow
     print("done making bytes")
-    output_fp = fp.replace(".", "_Amplified.")
     print(f"writing to {output_fp}")
     with open(output_fp, "wb") as f:
         f.write(b)
