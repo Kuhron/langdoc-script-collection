@@ -7,10 +7,7 @@
 # set `zoom` to True if the file was created directly by the Zoom H6, False for Audacity
 zoom = True
 
-# selecting the file
-n = "0021"
-suffix = "Tr1"
-fp = f"/mnt/c/Users/jazzz/Desktop/AudioEditing/ZOOM{n}_{suffix}.WAV"
+# the file is passed as an argument to the script
 
 # what amplitude is considered "quiet", i.e., not containing speech
 cutting_amplitude = 0.002
@@ -27,10 +24,17 @@ target_amplitude = 0.25
 ### END USER PARAMS ###
 
 
+# TODO performance improvements for low-memory field laptops:
+# - downsample RMS array (we still need the whole WAV array, though, so we can edit it and output)
+# - buffer reading the WAV array (don't do it all at once)
+# - buffer creating and writing the binary WAV output
+
+
 import math
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
+import argparse
 
 from util.SoundFileStatistics import sliding_rms
 from util.WavFiles import RATE, MAX_AMPLITUDE, get_array_from_file_reading_binary_directly
@@ -184,14 +188,21 @@ def debug_inspect_array(arr):
 
 
 if __name__ == "__main__":
-    output_fp = Path(fp.replace(".", "_Amplified."))
+    parser = argparse.ArgumentParser()
+    parser.add_argument("input_fp", type=Path, help="the file to amplify")
+    parser.add_argument("--save_rms", "-s", action="store_true", help="save RMS amplitude values to file to save time if run later")
+    args = parser.parse_args()
+    fp = args.input_fp
+
+    print(fp.parent / fp.stem)
+    output_fp = fp.parent / (fp.stem + "_Amplified" + fp.suffix)
+    rms_fp = fp.parent / (fp.stem + "_rms.txt")
 
     window_samples = int(RATE * window_seconds)
     arr, header_hex = get_array_from_file_reading_binary_directly(fp, zoom)
 
     # debug_inspect_array(arr)
 
-    rms_fp = Path(fp + "_rms.txt")
     if rms_fp.exists():
         with open(rms_fp) as f:
             lines = f.readlines()
@@ -202,9 +213,12 @@ if __name__ == "__main__":
         rms_arr = sliding_rms(arr, window_samples)
         assert len(arr) == len(rms_arr)
         print("done getting sliding rms")
-        with open(rms_fp, "w") as f:
-            for x in rms_arr:
-                f.write(f"{x}\n")
+        if args.save_rms:
+            print("writing rms stats to file")
+            with open(rms_fp, "w") as f:
+                for x in rms_arr:
+                    f.write(f"{x}\n")
+            print("done writing rms stats to file")
 
     # print(max(rms_arr))
     # debug_inspect_array(rms_arr)
