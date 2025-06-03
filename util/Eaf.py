@@ -67,7 +67,7 @@ def write_texts_interleaved(target_lang_texts: List[str], contact_lang_texts: Li
             ts = target_lang_texts[i]
             cs = contact_lang_texts[i]
             f.write(
-                f"{i+1}.\nTranscriptionRaw: {ts}\nTranscriptionCleaned: {ts}\nTranslationRaw: {cs}\nTranslationCleaned: {cs}\n----\n")
+                f"{i+1}.\nBaselineRaw: {ts}\nBaselineToClean: {ts}\nTranslationRaw: {cs}\nTranslationToClean: {cs}\n----\n")
 
 
 def get_texts_and_times_from_eaf(fp: Path):
@@ -148,7 +148,7 @@ def create_interleaved_text_file_from_eaf(text_dir: Path):
     eaf_fp = get_existing_eaf_fp_from_text_dir(text_dir)
     target_lang_texts, contact_lang_texts, start_times, end_times = get_texts_and_times_from_eaf(
         eaf_fp)
-    output_fp = text_dir / "InterleavedText.txt"
+    output_fp = eaf_fp.stem + "_InterleavedText.txt"
     write_texts_interleaved(target_lang_texts, contact_lang_texts, output_fp)
     print(
         f"\nInterleaved text file has been created at {output_fp}.\nPlease edit the text strings as desired, because these will be used to create the subtitle files.")

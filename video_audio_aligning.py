@@ -1,4 +1,4 @@
-# Copyright (c) 2023 Wesley Kuhron Jones <wesleykuhronjones@gmail.com> and Ethan Ferrer-Perry
+# Copyright (c) 2025 Wesley Kuhron Jones <wesleykuhronjones@gmail.com> and Ethan Ferrer-Perry
 # Licensed under the MIT License:
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -51,7 +51,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--action", type=str, help="the action to take (see docs)")
     parser.add_argument("--langs", type=language_list,
-                        help="comma-separated list of language codes from InterleavedText.txt.")
+                        help="comma-separated list of language codes from the interleaved text file")
     args = parser.parse_args()
 
     text_name = args.dir_path.stem
