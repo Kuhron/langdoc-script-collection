@@ -37,7 +37,8 @@ def create_srt_file_for_languages(text_dir, language_labels):
     if language_labels is None:
         raise ValueError("need to pass --langs argument")
 
-    interleaved_text_fp = text_dir / "InterleavedText.txt"
+    eaf_fp = get_existing_eaf_fp_from_text_dir(text_dir)
+    interleaved_text_fp = text_dir / (eaf_fp.stem + "_InterleavedText.txt")
     if not interleaved_text_fp.exists():
         raise Exception(
             "need to run script with --action=txt first before creating .srt subtitles, because InterleavedText.txt is the input for creating subtitles")
